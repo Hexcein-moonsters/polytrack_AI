@@ -61,7 +61,7 @@ You will need to set up devtools (Chrome) overrides first:
 5) Put the contents of the replay_renderer folder inside of your overrides folder
 
 Example overrides folder setup:
-```properties // Own note: this syntax highlighting is the only perfect one for the colors I want
+```ini // Own note: this syntax highlighting is the only perfect one for the colors I want
 .overrides/
 └── app-polytrack.kodub.com/
     └── 0.5.0/
