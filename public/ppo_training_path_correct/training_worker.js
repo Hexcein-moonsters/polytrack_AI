@@ -450,6 +450,11 @@ async function train(data) {
                 policyNet.predict(statesTensor),
                 actionIndices
             );
+            console.log("New Probs:", newProbs.arraySync());
+            console.log(actionIndices.shape);
+            console.log(actionIndices.arraySync());
+            console.log("Old Probs:", oldProbs.arraySync());
+            console.log("Shapes - new:", newProbs.shape, "old:", oldProbs.shape);
 
             // Compute ADVANTAGES (using value network)
             const advantages = computeAdvantages(valueNet, statesTensor, buffer, gamma);
