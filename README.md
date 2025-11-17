@@ -39,7 +39,7 @@ The reason ammo.wasm.wasm takes up so much RAM is because I modified it to use 1
 
 ### Software requirements:
 I have currently only tested this on Windows 11 with pnpm (any package manager would work perfectly fine) and Node.js v22.17.0, frontend on Google Chrome: v142.0.7444.163.
-The backend is very flexible, it only uses Express to serve /public at localhost:19999, so as long as your code language can serve a static website this project should work. I'm not sure about the frontend requirements though, as I use `navigator.wakeLock.request("screen");` to prevent the WebGL Context from being lost (as that makes the AI unable to predict anything and will forever run the simulation with 0% progress and will completely dumb-ify)
+The backend is very flexible, it only uses Express to serve /public at localhost:19999, so as long as your code language can serve a static website this project should work. I'm not sure about the frontend requirements though, as I use `navigator.wakeLock.request("screen");` to prevent the WebGL Context from being lost (as that makes the AI unable to predict anything and will forever run the simulation with 0% progress and will completely 'lobotomize' its brain)
 
 ## Usage
 `pnpm install`, `node main.js`, Open `localhost:19999` in browser to get a black page with a determinism speed check in console. If the determinism check fails, you cannot run the simulation. (Normal Polytrack has the same requirements, it's most likely that the check will succeed). A good speed is about 10-25ms.
@@ -61,7 +61,7 @@ You will need to set up devtools (Chrome) overrides first:
 5) Put the contents of the replay_renderer folder inside of your overrides folder
 
 Example overrides folder setup:
-```ini // Own note: this syntax highlighting is the only perfect one for the colors I want
+```properties // Own note: this syntax highlighting is the only perfect one for the colors I want
 .overrides/
 └── app-polytrack.kodub.com/
     └── 0.5.0/
