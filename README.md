@@ -75,3 +75,31 @@ You now put your AI's carRecordings into that list of objects, at `{ c: "putComp
 And also change `const replayDuration = 5000;` to the targetSimulationTimeFrames (in ms).
 
 Now all that's left to do is go to the desired track and click on 'Watch' without selecting any players. This will trigger an injection of your car recordings. You can use the timeline and pause and switch-car buttons like usual. You can click 'Back' to let yourself drive against these attempts. (All normal Polytrack logic)
+
+
+
+
+
+
+
+
+
+### My own personal docs (for https://arxiv.org/pdf/1707.06347)
+Avoid large policy updates. Clipped surrogate of advantage (Lclip) to get range: [1−ϵ,1+ϵ]  \
+θ: Policy parameters  \
+Plug an estimator of policy gradient into πθ  \
+Estimator: gˆ = Eˆt
+h
+∇θ log πθ(at
+| st)Aˆ
+t
+i
+πθ: stochastic policy (stochastic gradient ascent algorithm)  \
+πθold: the policy that took the initial action (old algorithm)  \
+Stochastic: random probability distribution.    π: S * A -> [0,1] or π(s, a)    S: State space. A: Action space. Probability between 0 and 1, softmax  \
+Clip range: [1−ϵ,1+ϵ]. Where ϵ = usually 0.2 to get [0.8,1.2], useful for avoiding large updates  \
+Clipped surrogate of advantage (Lclip): Objective function, clip(ratio) * A.    A: Advantage. Ratio: r(θ) * A.  \
+
+Clipping results in a conservative advantage estimate of the new policy: conservative = least risky, less likely to 'grab opportunities'
+
+Pseudo code translated (attempt):

@@ -1,3 +1,7 @@
+## AI descriptions of the funcs in i() in simulation_communicator.js, may not be reliable!
+
+
+
 ### **1. `i(e)` – Main Event Handler**
 - **Purpose**: Processes incoming messages (`e.data.messageType`) to perform actions like initializing simulations, verifying tracks, creating/deleting cars, etc.
 - **Key Operations**:
