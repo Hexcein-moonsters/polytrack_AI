@@ -1,6 +1,7 @@
 const workerTimeOrigin = performance.timeOrigin;
 
-importScripts('https://cdn.jsdelivr.net/npm/@tensorflow/tfjs'); // if I change this to '/lib/tfjs.js' then physicsParts somehow breaks. I assume it's cus of load time
+importScripts('/lib/tfjs.js'); // if I change this to '/lib/tfjs.js' then physicsParts somehow breaks. I assume it's cus of load time
+// Edit: I fixed the load order and event/waiting, a quick local tfjs load will work. (The old url was: https://cdn.jsdelivr.net/npm/@tensorflow/tfjs)
 //<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest"></script>
 //<script src="https://cdn.jsdelivr.net/npm/ppo-tfjs"></script>
 // https://github.com/zemlyansky/ppo-tfjs
@@ -198,6 +199,7 @@ async function predict(agentState, startTime, carID, reward, finishFrames) {
 
 async function train(data) {
     const { carID, carRequestId, progressIndex, epochs = 1, batchSize = 32, gamma = 0.99, learningRate = 0.0003 } = data; // 0.0003
+    // epochs are overwriten by ai_environment.js!
 
     /*await tf.tidy(async () => {
         const xs = tf.tensor2d(inputs, [inputs.length, inputs[0].length]);
@@ -450,11 +452,11 @@ async function train(data) {
                 policyNet.predict(statesTensor),
                 actionIndices
             );
-            console.log("New Probs:", newProbs.arraySync());
-            console.log(actionIndices.shape);
-            console.log(actionIndices.arraySync());
-            console.log("Old Probs:", oldProbs.arraySync());
-            console.log("Shapes - new:", newProbs.shape, "old:", oldProbs.shape);
+            // console.log("New Probs:", newProbs.arraySync());
+            // console.log(actionIndices.shape);
+            // console.log(actionIndices.arraySync());
+            // console.log("Old Probs:", oldProbs.arraySync());
+            // console.log("Shapes - new:", newProbs.shape, "old:", oldProbs.shape);
 
             // Compute ADVANTAGES (using value network)
             const advantages = computeAdvantages(valueNet, statesTensor, buffer, gamma);
@@ -482,17 +484,35 @@ async function train(data) {
                 tf.mul(gamma, tf.squeeze(vs))
             );
             const valueLoss = tf.losses.meanSquaredError(targets, tf.squeeze(vs));
-            console.log("Value Loss:", valueLoss.arraySync(), "Policy Loss:", policyLoss.arraySync());
-            console.log("Total loss:", tf.add(policyLoss, valueLoss).arraySync());
+            // console.log("Value Loss:", valueLoss.arraySync(), "Policy Loss:", policyLoss.arraySync());
+            // console.log("Total loss:", tf.add(policyLoss, valueLoss).arraySync());
+
+            /*losses.push({
+                policyLoss: policyLoss.arraySync(),
+                valueLoss: valueLoss.arraySync(),
+                totalLoss: tf.add(policyLoss, valueLoss).arraySync()
+            });*/
+            losses.push(tf.add(policyLoss, valueLoss).arraySync()); // total loss only
 
             // Return total loss (PPO + value loss)
             return tf.add(policyLoss, valueLoss);
         };
 
-        optimizer.minimize(lossFn, true, [
-            ...policyNet.trainableWeights.map(w => w.val),
-            ...valueNet.trainableWeights.map(w => w.val)
-        ]);
+        let losses = [];
+
+        tf.tidy(() => {
+            for (let epoch = 0; epoch < epochs; epoch++) {
+
+                console.log("Epoch " + (epoch + 1) + "/" + epochs);
+
+                optimizer.minimize(lossFn, true, [
+                    ...policyNet.trainableWeights.map(w => w.val),
+                    ...valueNet.trainableWeights.map(w => w.val)
+                ]);
+
+            }
+            console.log("Losses over epochs:", losses);
+        });
 
         // 4. ✅ CLEANUP (ESSENTIAL FOR BROWSER)
         statesTensor.dispose();
@@ -615,7 +635,7 @@ async function train(data) {
         }
         if (exp.nextAgentState == null) {
             // Change nextAgentState to copy of current agentState, gaslighting it into thinking nothing changed
-            experienceBufferPerCar[carID][index].nextAgentState = [ ...exp.agentState ]; // spread copy, idk if necessary, probably not
+            experienceBufferPerCar[carID][index].nextAgentState = [...exp.agentState]; // spread copy, idk if necessary, probably not
         }
         totalReward += exp.reward;
     });

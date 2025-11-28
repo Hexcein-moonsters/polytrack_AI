@@ -158,14 +158,20 @@ training_worker.onmessage = (e) => {
                 mode: "lines",
                 type: "scatter"
             };
+            let trace = {
+                x: [],
+                y: [],
+                mode: "markers",
+                type: "scatter"
+            };
             for (const [groupNum, groupData] of Object.entries(iterationData)) {
                 if (groupData.length < 2) continue; // a length of 1 or 0 is because we just did our push. Don't make trace with 1 point
-                let trace = {
+                /*let trace = {
                     x: [],
                     y: [],
                     mode: "markers",
                     type: "scatter"
-                }
+                }*/
                 groupData.forEach((itData) => {
                     trace.x.push(itData.iterationCount); // all data of group will be between x: 0-100 so u get actual iteration count
                     //trace.y.push(data.reward); // the y
@@ -177,12 +183,13 @@ training_worker.onmessage = (e) => {
                     }*/
                     trace.y.push(progressLeft); // a descending graph, hoping to reach 0% = track done
                 });
-                graphData.push(trace);
+                //graphData.push(trace);
 
                 medianLine.x.push(Number(groupNum) + trace.y.length / 2); // 1250 for example (1200 + 100/2), as it is half
-                const median = statisticsMath.median(trace.y); // get median of the y values of the trace
+                const median = statisticsMath.median([...trace.y]); // get median of the y values of the trace. Important: pass copy, else it will sort original array! (Took me 3 days to debug)
                 medianLine.y.push(median);
             }
+            graphData.push(trace);
             graphData.push(medianLine);
 
 
@@ -467,7 +474,7 @@ function AI_endOfEpisode_handler(carID, lastState, hasFinished) {
     const nearestPoint = treeNearest(carPos, 1);
     const progressIndex = getProgress(nearestPoint[0][0], nearestPoint[0][1]); // Get point index
 
-    training_worker.postMessage({ type: 'train', data: { carID: carID, carRequestId: requestId, progressIndex: progressIndex, epochs: 1, batchSize: 32 } });
+    training_worker.postMessage({ type: 'train', data: { carID: carID, carRequestId: requestId, progressIndex: progressIndex, epochs: 10, batchSize: 32 } });
 }
 
 
@@ -497,17 +504,17 @@ function calculateReward(states) {
     // This means a deltaProgress of 10 means you're going at '5m/s' of the path -- note that this is not your actual speed, this is progressRate.
     // From Linesight config: "Reward per meter advanced of points: +0.01" ("reward_per_m_advanced_along_centerline ")
     //const deltaPointMeters = deltaProgress_1s * 0.5; // points are about 0.5m-0.6m from each other
-    
+
     // Actually, I think they mean the full distance from start to current point: 'rollout_results["meters_advanced_along_centerline"].append(distance_since_track_begin)'
     // This means it exponentially gets higher reward the further it goes, massively rewarding long distance driving
     const distanceSinceTrackBegin = progressIndex * 0.5; // points are about 0.5m-0.6m from each other
     batchReward = distanceSinceTrackBegin * 0.01; // from linesight config
     //const actualDistance = getDistanceSinceTrackBegin(progressIndex); // Tiny difference in accurary (25.5 -> 26.03) but it's not worth it as '* 0.5' is way faster!
-    
+
     //batchReward += lastState.speedKmh * 0.1; // small reward for speed too. 200kmh = 20 extra reward
-    
+
     //batchReward -= lastState.collisionImpulses.length * 1; // penalty per collision
-    
+
     //const distanceToPath = Math.sqrt(nearestPoint[0][1]); // converted square distance to square root so it is actual distance
     //batchReward -= distanceToPath * 1; // subtract reward if far from intended path. About 0-7, and sometimes 20+ if really bad. Convert to 0-0.5 and 0.5-3 so speed is more important
 
@@ -515,15 +522,15 @@ function calculateReward(states) {
     batchReward += deltaCheckpointIndex * 1000; // extremely large reward for passing a checkpoint
     if (deltaCheckpointIndex) console.warn("A CAR HAS PASSED A CHECKPOINT");
 
-    
+
     if (lastState.finishFrames !== null) { // car has finished
         batchReward += 1000000; // 1e6, massive reward
         console.warn("Massive reward given as AI has crossed finish line!");
     }
-    
+
     // from linesight I got some config params
     batchReward -= states.length * 0.0012; // every ms it loses that amount of reward. Idk if even useful..
-    
+
     batchReward *= 0.1; // scale DOWN (to 30 -> 3) as apparently PPO wants rewards between -1 and 1
     return batchReward;
 }
