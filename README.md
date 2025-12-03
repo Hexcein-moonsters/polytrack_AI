@@ -77,16 +77,18 @@ And also change `const replayDuration = 5000;` to the targetSimulationTimeFrames
 Now all that's left to do is go to the desired track and click on 'Watch' without selecting any players. This will trigger an injection of your car recordings. You can use the timeline and pause and switch-car buttons like usual. You can click 'Back' to let yourself drive against these attempts. (All normal Polytrack logic)
 
 
-
-
-
-
-
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
 
 
 ### My own personal docs (for https://arxiv.org/pdf/1707.06347)
-Avoid large policy updates. Clipped surrogate of advantage (Lclip) to get range: [1−ϵ,1+ϵ]  \
-θ: Policy parameters  \
+Avoid large policy updates (action distribution). Clipped surrogate of advantage (Lclip) to get range: [1−ϵ,1+ϵ]  \
+θ: Policy parameters, weights  \
+Policy(state) = action
 Plug an estimator of policy gradient into πθ  \
 Estimator: gˆ = Eˆt
 h
@@ -94,6 +96,8 @@ h
 | st)Aˆ
 t
 i
+Q(s, a): a 'feeling'/value of how good the outcome of the action will be based on the state
+
 πθ: stochastic policy (stochastic gradient ascent algorithm)  \
 πθold: the policy that took the initial action (old algorithm)  \
 Stochastic: random probability distribution.    π: S * A -> [0,1] or π(s, a)    S: State space. A: Action space. Probability between 0 and 1, softmax  \
@@ -103,3 +107,10 @@ Clipped surrogate of advantage (Lclip): Objective function, clip(ratio) * A.    
 Clipping results in a conservative advantage estimate of the new policy: conservative = least risky, less likely to 'grab opportunities'
 
 Pseudo code translated (attempt):
+
+
+
+
+Synthetic pain. Fear failure, desire success. Simulating concequences before they happen
+
+Intuitive search, Monte Carlo value network, policy network for actions
