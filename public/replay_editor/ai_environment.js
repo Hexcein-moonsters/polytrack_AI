@@ -7,98 +7,136 @@ const postToWorker = getShared("postToWorker");
 const Q_ = getShared("Q_"); // at this point, Q_ has probably been set by full_simulation_bundle.js already
 if (!Q_) throw new Error("Q_ not found in shared!");
 
-// youngfella, 22074, world record
-const replay = "eNpdkDsKwlAQRc8rAgl-cAEWgmBho1YKglZaKQixilWs7NJpIensXIGCS3AJNiq4EwtxAZa-d0NAnGIYZs7MvYyHi1eDoeESsIAhzGAAUxhBDE1Y_eS_Thvm4rO-MXTAq5JAD56GOnw8unDz3ejg0yox1vFQcrbu5usRjg-1a4GOcgZHKrKcqpPIZCI-0cg68WFb4RhwKrIx3APH9AsUitTg4TvDkXTD_KA9tZSHVB5S6V7l5AxVeJcdsxe5k0qsRWtynf9qosLGF-mpJjg";
-const trackData = "4pdXVdtzriDEerE9ylBIAheAEa3RxOAmSATJwTflf6snVf1KNa6GMz8NDp2Vte0nnbLaV10h1veiig234ZWj2tVD7bmPkPNvPe24bSr3WrquSapV1Wl1X6SSPutyEXeHrBZoaeijwdQdGEkegVYgT6x5NhTBQrOo9VAASPAZ9s4giwZooSwyaeD6JNlkyGBOeHRNCaANOR7gBwQbjKOQPU2u6FcIYDR2V0hAec35ckcDeq6drtlhzqRpfE4HolDwth2XgoJeBTTcwRB5wXAzN3GjNGclDfvSl3HEoCH7swKhpafjjd2uyFFSjSN6Ge7DR0aaqnfr1XRGJhHg7AcKN5bR3veLvuGFwTrePe1W1diC7j9se5wkR2DJZWsDQdo11kAq1gYdIGRm5e5Ry4MhEmxFOylELHcfjJ40bNCWsReJn2ZniZbIozJEfzeeyF5gZYIXfjceOWzhp6UNOp3VGFlunCk692FebWC0kYekehY73UJnMNSEUVpZAfxJ2Pby6R2zhY3F8KRpC1k206IgLkaWkc4g7EW49ZTlVD4CCv0sYlo4yJz4AwpR1cvrOoq2e8SVOmQivDzzSFf6aXT1ZZ1v7iVL2fQbfhYwJgAP0LevM3EUfskaDV3unKyLGWw4RWz81mezfP5p6nMqo0g6QDi3PLy3oeRmo8dvyvYsNE28m2fsfz98njOGPPJJKdcSCfL5fXOf03n4f861ERIYmDevEXpf8eVq9vYeS25BRPupXMpcy9MhBvtXw3dLuGMeUIwPYdfaS6xJqsvabVqlJH1vFcmkBSYxJsvuotVjZvpkrQlqxtSYZxrT6kEDPg96z73ibn3JZ0szBazbRxnr0pHFlTFE7O58aOQN6DxGU5Q12Jim9F9naeXdscQ1an3yHa7m5vRpOa7mEtun6qGsS8ApQg01gkjwbKw7ew3FsKwMfo3oZCIOd6IwkqeSqi23bm2wGJ7L8iVuDCNCm029LDkHfsZfavYqWol2jPpoMTNmXS5jExfwqhJz22tmGY45sByAVBTQEPFiGhdZdEugGBbcK4IIsRwDMTNwGSVL719XEwTfRXYPf4fBcEfsFIVxeGVbmddbtPfWlhrR77nfqOYk1XdxsMKMehxNg67aHp3J3QmIATh9KjXezU5Q2RWfM3y3hVIS9Mxrr5Yn9d3oMAW05gzPe1ZeR1y4KxWA1CERv6f8erKQ95EsXzHt3jOxKFfqZ3IFlFOd8XDyNnnZZvYesh2ecBgHMEXaX4oxCUfbS5h6ug8pl92vE0ce1NVVQvBqto3ycF7xXLRsVMVPv81HGpAO01vq2a0rMPcrPvWJqDyK9A3AfZByVptK3tul5PlmqULKMTWP79hcvr00XVHe1gA0PIq4Gpb23qakhqoN5QiFdGh6cWuhymq0BycWrt3fyEkF8E2wbI11ofhkoqXwVYPfXhB2GjvEkNGpL3LgxalqDPeh5HnlWGjbXlePBL278wbXBRf5RwyPVnEosNpBbSeQiVlKGhipWmfwoCXM9wwgyJBhs5pCD8MER2vQIJqK8DjWMfXeD6TpZbQ2nrFVtuRbZFkZDCfa8N2DzgyTI9d8qzwbcvzHKJoIrB9f0gQp0b0GNEsKceg10zWFThunfDqKXRLZ4fiwyPJiJfeSqeefRXwbhHstYMDzsHt8YveHjy1DhgFWrZHaOSnBBnJwBJdmfGBLq6zmq0hXFwW9tZaQLACg37giA585jx46yRKXEBrzCf8DHmOgCTsA9Cged3ZgHuTpWkjASvEnTac9FRN1OJGxHdGpjJBccAR3X2nHSXtHnChB7qxUKTdnqRaB9Fe8A6u57sb3YTx8PVePpzmhvC";
+const trackData = "4pdXVdsrrjrE8XS5wSrk1hWJrAVYnCk2KLqgtke1P6cn3bAmZBBIIaUorurqYqdViHeE0a4utrLqlBhc7yqD0rDoAqetLfj1j84od142txXVehkveTjtf6jsU3o49zTWKI625QRPGJN0PqhZ9kn8mIYZPassF8zKiaUYJU6G7uTpRyXek4uBEWFHtM0Y0FZfpFjAPLy8Hkewe763n6ez6wXbXI94D5al1AeRMCZeufbqlfhOd7agdTInd83uiwcQyyrw07hp6ajmeoP0EiEnRBiwaF76DZMQErs1UwJseAt8WcM71Qx02hPsIjXgv9IWeMBPcMGTCdfCppbTb9bPMjKQDP4Zrjj5U3L4U2OjZoqF5UQRbGkQBe1oypuChohFr9sSVrff9QCtfO7uUlLGcfFQP9yj84dlU20843kfm0Q8Oce2Fabcfudfvgy7WcqboYU93sfhKNpqXwgvoBLZg0r4XdeHgTYLldYNnRBXgFaBAMLRbbVMJ4Avo6i2lp8HsSOrcKARORcuT6z14C2x4OjoPbH56sTyV3dkc7kCzpCa0u6in40hWv5WxHf8VclNeNrQepd1YGZhnuwYg7bDbYlSyHnw6LeZbIANtMqYutefMxHm0N9N5dF2n60tyf1vkLm5Vf1pszcEkSygWimeptBrDV9WBfuA86FAfseZwbiRQdrOYqSr4efAeketKG0DJBhqRr4KdnRjK2rhHPiqZAxeCRqGffQZVEXeWV1p8RU99Sdz8BxOWuUP2sL8dREROYzvvv1xW4B9FXNCyh8lsqnbfGVfkUeTKJf1qRaNgWfQYp7BffMoxeBAdduTPGIf74dd6UTmGtamECmzrc0ULVfFhHeV1txi7x27fqC0f55plkRxg5XUqJxvbcFAiJ5ThXTx8g6GirA1eIkDYPE6VJkReMMQNy55gSfHMttfB2Ql1OF4AAep1r6TJlhBHROhDZ95EAIMqq2dIlEEG8Ia95gRf8NA4Mqq3dIj013u8k2Qo89UcRwxDYy0JsPfMAUEV14ymSkvqIkuSocYyNP4QB6NeUrX4S5MEJ366lRm7bL9ptEkqnQtEvJhQCCAxLQ5ueatvkfHWxxY1IFfvpoByhif8aWltFTGQB640eVljJQJrwTsIgelGG1PnwqVayu54HUTqHYHaK3yuJDfZz5lv97DmDyubXuqFn92rZOUf89wVYENFUOQ8nkyRPqJUa6YW0SSZruWOgtqwaCuSD4XMTwM8gln4CXf4BDxBezUXeMS0FBqVuIG1zYORml1VA5BSEF3dFd0TQp3a4GdnMOhsi3nBmcAkKWenk8ELzLrWVq6f3uNfcOWZ6xf1ae3LT6PXKRhc5SsY8eYcQHGt5u9eRz50J9Je8b8nkZYWrRDeCz4xOmx7hZ2777mxIASim4hkgwBhdDku33qStkdjfa71fbSzebCeNz9PXPYrEh89Sl3EJf81sHZBN3VoY8SofWTGVFA91y9TOTCCUfHnGzySG1rYq34a3ugM6maZ65eCJ0w70zQM9n35Z2QZyZk8Cfq6O9d8b7JfDz4TrFdaTyjLnVe7fJGviELjQtzQ05Bepfhpe4zuGQ3CPuOBpgJlZfv2g8T2nXXMKVPTVbSvJPqty5RDSgrlwrIJxPQhRvpIvfmYsfdxZVQ9oy61fHw3i8ci8seXMXd4MM";
+
+
+
+// There's a bug where it says:
+// "Uncaught TypeError: Cannot read properties of undefined (reading 'replace')"
+// At 'ch' in 'static deserialize' which is a deflate inflate compress thing.
+// I thought the issue was me using Sh (replaymaker) twice, but even using it once for makeRecordingString makes this error.
+// I don't use .deserialize anywhere in my makeRecordingString code, so I don't know why this happens.
+// Anyways I get the correct replay string result, so I'm happy with that. Let's just ignore the error for now.
+// it seems to only be caused when a 'Q_.makeRecordingString' request is sent
+// Huh for some reason my 'getControlsFromRecording' (deserializer) seems to activate when I send makeRecordingString.
+// Could I have messed up the switch-case or function wrapping?
+
+// EDIT I FIGURED IT ALL OUT!!!!
+// Note to self: you must use 'break' after the '}(e);', otherwise case will incorrectly continue!
+
+
+const mode = "generate"; // 'generate' or 'extract'
+const replayToExtractFrom = null; // null or "recordingstringhere"
+const frameCountToExtractFrom = null; // null or int (not str) in ms: 12345
+
+// Used to stop sim at that time instead of continuing infinitely or longer than needed
+// If the sim times out then the progress of the car will be shown
+const maxSimFrames = 20000; // in ms, set this if mode="generate". 
+
+function start() {
+    if (mode == "generate") {
+
+        const requestId = getUniqueId();
+        requestWaits[requestId] = (response) => {
+            console.log("response of replay gen:", response);
+            const newReplay = response.recording;
+
+            startTime = performance.now();
+            const newId = getUniqueId();
+            requestWaits[newId] = (response) => {
+                const lastState = response.lastState;
+                // if finishFrames is null then we know it didn't finish.
+                // Our Q_.finishExpired doesn't need to say that it is expired, as we can see the finishFrames is null
+                if (lastState.finishFrames) {
+                    console.log("Car finish lastState:", lastState);
+                    console.log("Took " + (performance.now() - startTime).toFixed(1) + "ms.");
+
+                    document.getElementById('time').innerHTML = `FinishFrames: ${lastState.finishFrames}`;
+                    document.getElementById('replay').innerHTML = `${newReplay}`;
+                } else {
+                    if (lastState.frames !== maxSimFrames) {
+                        throw new Error("Why did sim exit early (before car crossed finish line) if maxSimFrames wasn't achieved?");
+                    } else {
+                        const pos = lastState.position;
+                        const nearest = treeNearest(pos, 1);
+                        console.log("Nearest:", nearest[0]);
+                        const progress = getProgress(nearest[0][0], nearest[0][1]);
+
+                        console.log(progress);
+                        console.log(points);
+
+                        console.log("Progress:", (progress / points.length * 100).toFixed(2) + "%");
+    
+                        console.log("grr:", lastState);
+                    }
+                }
+            }
+
+            // Now test our new carRecording
+            postToWorker({
+                messageType: Q_.CreateCar,
+                mountainVertices: [], // no mountain vertices, as optimisation. Should be jI.createMountainVertices(e.getBounds()); where e is track
+                mountainOffset: {
+                    x: 0,
+                    y: 0,
+                    z: 70
+                },
+                trackData: trackData,
+                carId: 0,
+                carRecording: newReplay, // r.serialize()
+                carCollisionShapeVertices: testCar.carCollisionShapeVertices, //jw.models.collisionShapeVertices, // jw is class Gw
+                carMassOffset: 0.6 //jw.massOffset,
+            });
+
+            postToWorker({
+                messageType: Q_.StartCar,
+                carId: 0,
+                targetSimulationTimeFrames: maxSimFrames, // 100s, anything can be put here as we auto delete finished cars
+                requestId: newId // custom data
+            });
+        }
+
+        postToWorker({
+            messageType: Q_.makeRecordingString,
+            inputs: customInputs,
+            requestId: requestId
+        });
+    } else if (mode == "extract") {
+        const requestId = getUniqueId();
+        requestWaits[requestId] = (response) => {
+            console.log("response of extract:", response);
+        }
+
+        postToWorker({
+            messageType: Q_.getControlsFromRecording,
+            recordingString: replayToExtractFrom,
+            frameCount: frameCountToExtractFrom,
+            requestId: requestId
+        });
+    }
+}
+
+
 
 let allStates = [];
 let pathPositions = [];
 
-setShared("onCommunicatorReady", () => { // ready = after Init
+addSharedEventListener("onCommunicatorReady", () => { // ready = after Init
     /*for (let index = 0; index < 1000; index++) {
       postToWorker({ data: { messageType: Q_.TestDeterminism } });
     }*/
     startTime = performance.now();
     postToWorker({ messageType: Q_.TestDeterminism });
 
-
-    postToWorker({
-        messageType: Q_.CreateCar,
-        mountainVertices: [], // no mountain vertices, as optimisation. Should be jI.createMountainVertices(e.getBounds()); where e is track
-        mountainOffset: {
-            x: 0,
-            y: 0,
-            z: 70
-        },
-        trackData: trackData,
-        carId: 0,
-        carRecording: replay, // r.serialize()
-        carCollisionShapeVertices: testCar.carCollisionShapeVertices, //jw.models.collisionShapeVertices, // jw is class Gw
-        carMassOffset: 0.6 //jw.massOffset,
-    });
-
-    postToWorker({
-        messageType: Q_.StartCar,
-        carId: 0,
-        targetSimulationTimeFrames: 100000 // 100s, anything can be put here as we auto delete finished cars
-    });
-
+    start();
 });
 
-function pathDone() {
-    console.log(allStates);
-    /*allStates.forEach(state => {
-        if (state.frames % 100 == 0) { // will start at 100 and then do 200, 300,..
-            //console.log(state);
-            /*pathPositions.push({
-                frame: state.frames,
-                pos: state.position
-            });*/
-    /*pathPositions.push({
-        x: Number( state.position.x.toFixed(2) ),
-        y: Number( state.position.y.toFixed(2) ),
-        z: Number( state.position.z.toFixed(2) ),
-    });
-}
-});*/
-
-
-    const pointDistance = 0.5; // All points will be between 0.5 and 0.6 meters from each other
-    pathPositions = [];
-
-    for (const state of allStates) {
-        const { x, y, z } = state.position;
-
-        if (pathPositions.length === 0) {
-            // Always add the first point
-            pathPositions.push({
-                x: Number( x.toFixed(4) ),
-                y: Number( y.toFixed(4) ),
-                z: Number( z.toFixed(4) )
-            });
-        } else {
-            // Calculate the distance from the last selected point
-            const lastPoint = pathPositions[pathPositions.length - 1];
-            const dx = x - lastPoint.x;
-            const dy = y - lastPoint.y;
-            const dz = z - lastPoint.z;
-            const distance = Math.sqrt(dx * dx + dy * dy + dz * dz); // square everything, then add up, then square root
-
-            if (distance >= 0.5) {
-                pathPositions.push({
-                    x: Number( x.toFixed(4) ),
-                    y: Number( y.toFixed(4) ),
-                    z: Number( z.toFixed(4) )
-                    //d: distance
-                });
-            }
-        }
-    }
-
-
-    console.log(pathPositions);
-}
-
+let id = 0;
+const getUniqueId = () => { // amazing code
+    id++;
+    return id; // int
+};
+let requestWaits = {};
 
 
 function onWorkerMessage(e) { // worker -> main thread
@@ -116,13 +154,16 @@ function onWorkerMessage(e) { // worker -> main thread
                 if (!finishedCars.has(state.id)) {
                     allStates.push(state);
                     if (state.finishFrames !== null) {
-                        console.log(performance.now() - startTime);
                         console.log("Car with id " + state.id + " has finished at frame " + state.finishFrames + ". Full final carstate: ", state);
                         finishedCars.add(state.id); // mark as finished
                         console.log("Deleting id=" + state.id + " as it has already finished, to prevent waiting 100s, and mem leak fix");
                         postToWorker({ messageType: Q_.DeleteCar, carId: state.id });
 
-                        pathDone();
+                        const id = state.requestId; // I made states of c() have a requestId from startCar
+                        requestWaits[id]({
+                            lastState: state
+                        }); // call receiver
+                        delete requestWaits[id]; // remove func
                     }
                 }
             });
@@ -134,6 +175,10 @@ function onWorkerMessage(e) { // worker -> main thread
         }
     } else if (e.messageType === Q_.VerifyResult) {
         console.log("Received verify result of car " + e.carId + ":", e);
+    } else if (e.messageType === Q_.recordingStringResult || e.messageType === Q_.controlsResult || e.messageType === Q_.finishExpired) {
+        const id = e.requestId;
+        requestWaits[id](e); // call receiver
+        delete requestWaits[id]; // remove func
     } else {
         console.log("sim sent msg:", e);
     }
@@ -141,15 +186,6 @@ function onWorkerMessage(e) { // worker -> main thread
 setShared("onWorkerMessage", onWorkerMessage);
 
 
-/*setTimeout(() => {
-    console.log(times);
-    let total = 0;
-    times.forEach((time) => {
-        total += time;
-    });
-    const avg = total / times.length;
-    console.log("Avg of: " + avg + "ms per determinism call");
-}, 10000);*/
 
 
 
