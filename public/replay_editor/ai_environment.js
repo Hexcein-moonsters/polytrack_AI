@@ -66,8 +66,21 @@ function start() {
                         console.log(points);
 
                         console.log("Progress:", (progress / points.length * 100).toFixed(2) + "%");
-    
+
                         console.log("grr:", lastState);
+
+                        testCarPoints = []; // reset
+
+                        for (const state of allStates) {
+                            const { x, y, z } = state.position;
+                            testCarPoints.push({
+                                x: x,
+                                y: y,
+                                z: z
+                            });
+                        }
+
+                        callSharedEventListener("carTestDone")(testCarPoints);
                     }
                 }
             }
@@ -119,7 +132,7 @@ function start() {
 
 
 let allStates = [];
-let pathPositions = [];
+let testCarPoints = [];
 
 addSharedEventListener("onCommunicatorReady", () => { // ready = after Init
     /*for (let index = 0; index < 1000; index++) {
