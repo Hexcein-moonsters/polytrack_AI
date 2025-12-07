@@ -34,9 +34,11 @@
         gridCanvas.height = canvas.height;
         const gridCtx = gridCanvas.getContext("2d");
 
-        
+
         let colorsUsed = [];
         let colorMap = new Map();
+        
+        let pins = [];
 
 
         // ========= Pan/Zoom State =========
@@ -118,7 +120,7 @@
                 [0.75, [180, 120, 40]], // brown
                 [1.00, [255, 255, 255]]  // white
             ];*/
-            const stops = [
+            /*const stops = [
                 [0.00, [30, 60, 140]],   // deep blue
                 [0.25, [80, 150, 200]],  // light blue
                 [0.40, [120, 180, 60]],  // green
@@ -128,6 +130,14 @@
                 [0.95, [240, 200, 140]], // sand/light yellow
                 //[1.00, [255, 220, 180]]  // very light cream (not pure white)
                 [1.00, [240, 50, 50]] // red
+            ];*/
+            const stops = [
+                [0.00, [35, 50, 130]], // dark blue
+                [0.25, [70, 170, 185]], // light blue
+                [0.40, [80, 130, 50]], // green
+                [0.60, [240, 225, 60]], // yellow
+                [0.75, [255, 125, 0]], // orange
+                [1.00, [200, 0, 0]] // red
             ];
             for (let i = 0; i < stops.length - 1; i++) {
                 const [t1, c1] = stops[i];
@@ -227,6 +237,16 @@
             drawPointsBatch();
 
             drawHover();
+
+            for (const pin of pins) {
+                const s = worldToScreen(pin.x, pin.y);
+                drawPin({
+                    x: s.x,
+                    y: s.y,
+                    radius: pin.radius,
+                    color: pin.color
+                });
+            }
         }
 
         function drawPointsBatch() {
@@ -262,7 +282,7 @@
                 }
                 ctx.fill();*/
 
-                for (let [ x, y ] of points) { // not an object, it's an array
+                for (let [x, y] of points) { // not an object, it's an array
                     ctx.fillRect(x, y, 2, 2); // directly draw the tiny point
                 }
             }
@@ -271,7 +291,7 @@
             const zx = zoom;
             const ox = offsetX;
             const oy = offsetY;
-            
+
             colorMap = new Map(); // reset
             for (const c of colorsUsed) colorMap.set(c, []);
 
@@ -279,7 +299,7 @@
                 p.sx = p.x * zx + ox;
                 p.sy = p.z * zx + oy;
 
-                colorMap.get(p.color).push([p.sx, p.sy]);            
+                colorMap.get(p.color).push([p.sx, p.sy]);
             }
 
 
@@ -304,6 +324,9 @@
 
             const [nearest, distSquared] = nearestResult[0];
 
+            const nearestIndex = pointData.indexOf(nearest);
+            const nearestActualPoint = pointData[nearestIndex];
+
             // Optional: only show if distance < some threshold in screen pixels
             const s = worldToScreen(nearest.x, nearest.z);
             const dx = s.x - mx;
@@ -316,25 +339,89 @@
             ctx.fillStyle = "black";
             ctx.strokeStyle = "white";
             ctx.lineWidth = 3;
-            const text = `x:${nearest.x.toFixed(2)}, y:${nearest.y.toFixed(2)}, z:${nearest.z.toFixed(2)}`;
+            let text = `x:${nearest.x.toFixed(2)}, y:${nearest.y.toFixed(2)}, z:${nearest.z.toFixed(2)}`;
+            text += `\nSpeedKmh: ${nearestActualPoint.speedKmh.toFixed(1)}`;
             ctx.font = "13px sans-serif";
 
-            const w = ctx.measureText(text).width + 8;
+            /*const w = ctx.measureText(text).width + 8;
             const h = 18;
 
             ctx.strokeRect(s.x + 10, s.y - h, w, h);
             ctx.fillRect(s.x + 10, s.y - h, w, h);
 
             ctx.fillStyle = "white";
-            ctx.fillText(text, s.x + 14, s.y - 5);
+            ctx.fillText(text, s.x + 14, s.y - 5);*/
+
+            const lines = text.split('\n');
+            const lineHeight = 18; // same as your rectangle height for consistency
+            const w = Math.max(...lines.map(line => ctx.measureText(line).width)) + 8;
+            const h = lineHeight * lines.length;
+
+            ctx.strokeRect(s.x + 10, s.y - h, w, h);
+            ctx.fillRect(s.x + 10, s.y - h, w, h);
+
+            ctx.fillStyle = "white";
+
+            lines.forEach((line, index) => {
+                ctx.fillText(line, s.x + 14, s.y - h + lineHeight * (index + 1) - 5);
+            });
+        }
+
+        function drawPin(pin) {
+            ctx.save();
+            ctx.translate(pin.x, pin.y);
+
+            const scaleFactor = pin.radius * 3;
+            ctx.scale(scaleFactor, scaleFactor);
+
+            const path = new Path2D();
+            const steps = 100;
+
+            // --- Droplet contour polar curve ---
+            for (let i = 0; i <= steps; i++) {
+                const t = Math.PI + i * (Math.PI / steps);
+                const x = 0.6 * Math.sin(t) * Math.cos(t);
+                const y = Math.sin(t);
+
+                if (i === 0) path.moveTo(x, y);
+                else path.lineTo(x, y);
+            }
+
+            // close curve
+            path.lineTo(0, 0);
+            path.closePath();
+
+            // --- Holle ---
+            const holeY = -0.7; // topo da gota
+            const holeRadius = 0.13
+            path.moveTo(0 + holeRadius, holeY);
+            path.arc(0, holeY, holeRadius, 0, Math.PI * 2, true);
+
+
+            ctx.fillStyle = pin.color;
+            ctx.fill(path, 'evenodd'); // importante: 'evenodd' cria o furo
+
+            ctx.strokeStyle = "black";
+            ctx.lineWidth = 0.02;
+            ctx.stroke(path);
+
+            ctx.restore();
         }
 
 
 
-        addSharedEventListener("carTestDone", (points) => {
-            pointData = [...points];
 
-            carTree = new kdTree([...points], distance3D, ["x", "y", "z"]);
+        addSharedEventListener("carTestDone", (points, lastState) => {
+            const newPoints = [];
+            points.forEach((point, index) => {
+                //if (Math.random() < 0.8) continue; // 80% chance of not getting added
+                if (index % 10 == 0) {
+                    newPoints.push(point);
+                }
+            });
+            pointData = [...newPoints];
+
+            carTree = new kdTree([...pointData], distance3D, ["x", "y", "z"]);
 
             // determine y range for colors
             yMin = Math.min(...points.map(p => p.y));
@@ -355,9 +442,19 @@
 
 
             // Precompute colors
+            //let previousPoint = pointData[0];
             for (let p of pointData) {
                 const t = ((p.y - yMin) / (yMax - yMin || 1)) * 0.98; // optional scaling
-                const color = topoColor(t);
+                //const color = topoColor(t);
+                // Math.random() * 360
+                // Calculating the distance travelled from p0 to p1, which is car speed!
+                /*const dx = p.x - previousPoint.x;
+                const dy = p.z - previousPoint.y;
+                const distance = Math.sqrt(dx * dx + dy * dy); // convert d² -> d
+                previousPoint = p;*/
+                const hslColor = Math.round(p.speedKmh / 1); //distance; // supports up to 360 speed
+                let color = `hsla(${hslColor}, 100%, 50%, 1)`; // 100% saturation, 50% brightness, 1 opacity
+                if (p.speedKmh < 0) color = 'black';
                 p.color = color;
                 if (!colorsUsed.includes(color)) colorsUsed.push(color);
             }
@@ -375,8 +472,15 @@
             }
 
 
-            drawGridOnce();
+            pins.push({
+                x: lastState.position.x,
+                y: lastState.position.z,
+                radius: 5,
+                color: 'rgb(255, 0, 0)'
+            });
 
+
+            drawGridOnce();
             draw();
         });
 

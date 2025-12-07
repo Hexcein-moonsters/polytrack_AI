@@ -57,32 +57,34 @@ function start() {
                     if (lastState.frames !== maxSimFrames) {
                         throw new Error("Why did sim exit early (before car crossed finish line) if maxSimFrames wasn't achieved?");
                     } else {
-                        const pos = lastState.position;
-                        const nearest = treeNearest(pos, 1);
-                        console.log("Nearest:", nearest[0]);
-                        const progress = getProgress(nearest[0][0], nearest[0][1]);
 
-                        console.log(progress);
-                        console.log(points);
-
-                        console.log("Progress:", (progress / points.length * 100).toFixed(2) + "%");
-
-                        console.log("grr:", lastState);
-
-                        testCarPoints = []; // reset
-
-                        for (const state of allStates) {
-                            const { x, y, z } = state.position;
-                            testCarPoints.push({
-                                x: x,
-                                y: y,
-                                z: z
-                            });
-                        }
-
-                        callSharedEventListener("carTestDone")(testCarPoints);
                     }
                 }
+                const pos = lastState.position;
+                const nearest = treeNearest(pos, 1);
+                console.log("Nearest:", nearest[0]);
+                const progress = getProgress(nearest[0][0], nearest[0][1]);
+
+                console.log(progress);
+                console.log(points);
+
+                console.log("Progress:", (progress / points.length * 100).toFixed(2) + "%");
+
+                console.log("grr:", lastState);
+
+                testCarPoints = []; // reset
+
+                for (const state of allStates) {
+                    const { x, y, z } = state.position;
+                    testCarPoints.push({
+                        x: x,
+                        y: y,
+                        z: z,
+                        speedKmh: state.speedKmh
+                    });
+                }
+
+                callSharedEventListener("carTestDone")(testCarPoints, lastState);
             }
 
             // Now test our new carRecording

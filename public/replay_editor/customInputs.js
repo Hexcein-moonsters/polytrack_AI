@@ -387,7 +387,7 @@ const customInputs = [
     {
         "up": true,
         "right": false,
-        "down": true,
+        "down": false,
         "left": false,
         "reset": false,
         "frame": 14110
