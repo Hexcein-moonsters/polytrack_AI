@@ -11,18 +11,6 @@ const trackData = "4pdXVdsrrjrE8XS5wSrk1hWJrAVYnCk2KLqgtke1P6cn3bAmZBBIIaUorurqY
 
 
 
-// There's a bug where it says:
-// "Uncaught TypeError: Cannot read properties of undefined (reading 'replace')"
-// At 'ch' in 'static deserialize' which is a deflate inflate compress thing.
-// I thought the issue was me using Sh (replaymaker) twice, but even using it once for makeRecordingString makes this error.
-// I don't use .deserialize anywhere in my makeRecordingString code, so I don't know why this happens.
-// Anyways I get the correct replay string result, so I'm happy with that. Let's just ignore the error for now.
-// it seems to only be caused when a 'Q_.makeRecordingString' request is sent
-// Huh for some reason my 'getControlsFromRecording' (deserializer) seems to activate when I send makeRecordingString.
-// Could I have messed up the switch-case or function wrapping?
-
-// EDIT I FIGURED IT ALL OUT!!!!
-// Note to self: you must use 'break' after the '}(e);', otherwise case will incorrectly continue!
 
 
 const mode = "generate"; // 'generate' or 'extract'
@@ -38,7 +26,7 @@ function start() {
 
         const requestId = getUniqueId();
         requestWaits[requestId] = (response) => {
-            console.log("response of replay gen:", response);
+            console.log("response of replay gen:", response.recording);
             const newReplay = response.recording;
 
             startTime = performance.now();
@@ -57,7 +45,8 @@ function start() {
                     if (lastState.frames !== maxSimFrames) {
                         throw new Error("Why did sim exit early (before car crossed finish line) if maxSimFrames wasn't achieved?");
                     } else {
-
+                        console.log("Car expired lastState:", lastState);
+                        console.log("Took " + (performance.now() - startTime).toFixed(1) + "ms.");
                     }
                 }
                 const pos = lastState.position;

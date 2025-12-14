@@ -26520,9 +26520,12 @@
             return new Zt(e.x(),e.y(),e.z())
         }
         ,
-        w_ = function() {
-            const e = Math.abs(b_(this, jA, "m", A_).call(this).dot(b_(this, jA, "m", v_).call(this)))
-              , t = b_(this, jA, "m", __).call(this)
+        w_ = function() { // handles 'grip' calculation, additional force based on direction and speed of car compared to surfaceNormal
+            // If flat on ground: no impulse
+            // If driving 90° vertical: +-0.05 max impulse
+            // Car driving on tilted surface: small impulse
+            const e = Math.abs(b_(this, jA, "m", A_).call(this).dot(b_(this, jA, "m", v_).call(this))) // dot product of forwardVector and surfaceNormal
+              , t = b_(this, jA, "m", __).call(this) // steering direction times speed: lateral traction
               , n = .05;
             b_(this, n_, "f").setValue(t.x * e * n, t.y * e * n, t.z * e * n),
             b_(this, ZA, "f").applyCentralImpulse(b_(this, n_, "f"))
@@ -26531,11 +26534,12 @@
         y_ = function(e, t) {
             var n;
             x_(this, p_, !1, "f");
-            let i = !1
-              , r = !1
-              , a = !1
-              , s = !1
-              , o = !1;
+            let i = !1 // up
+              , r = !1 // right
+              , a = !1 // down
+              , s = !1 // left
+              , o = !1; // reset
+            // Getting controls
             b_(this, c_, "f") && (this.hasFinished() || ({up: i, right: r, down: a, left: s, reset: o} = null !== (n = null == t ? void 0 : t.getControls(b_(this, h_, "f").numberOfFrames)) && void 0 !== n ? n : {
                 up: !1,
                 right: !1,
@@ -26543,18 +26547,18 @@
                 left: !1,
                 reset: !1
             }),
-            b_(this, h_, "f").increment());
+            b_(this, h_, "f").increment()); // add 1ms to the timer
             const l = this.getWheelInContact(0) || this.getWheelInContact(1) || this.getWheelInContact(2) || this.getWheelInContact(3);
-            if (!l && a && !this.hasFinished() && b_(this, c_, "f") ? b_(this, ZA, "f").setDamping(.1, .6) : b_(this, ZA, "f").setDamping(.1, .1),
+            if (!l && a && !this.hasFinished() && b_(this, c_, "f") ? b_(this, ZA, "f").setDamping(.1, .6) : b_(this, ZA, "f").setDamping(.1, .1), // If no wheels are on ground and downPressed, rotational damping of 0.6
             i && !this.hasFinished() && b_(this, c_, "f")) {
                 const e = 4e3;
-                b_(this, KA, "f").applyEngineForce(e, 2),
+                b_(this, KA, "f").applyEngineForce(e, 2), // RWD
                 b_(this, KA, "f").applyEngineForce(e, 3)
             } else
                 b_(this, KA, "f").applyEngineForce(0, 2),
                 b_(this, KA, "f").applyEngineForce(0, 3);
-            if (a && !this.hasFinished() && b_(this, c_, "f"))
-                if (this.getSpeedKmh() > 1 || !l) {
+            if (a && !this.hasFinished() && b_(this, c_, "f")) // c_ = has started
+                if (this.getSpeedKmh() > 1 || !l) { // can only airbreak if no wheels touching ground and speed is above 1km/h
                     const e = 10;
                     b_(this, KA, "f").setBrake(e, 0),
                     b_(this, KA, "f").setBrake(e, 1),
@@ -26562,7 +26566,7 @@
                     b_(this, KA, "f").setBrake(e, 3),
                     x_(this, p_, !0, "f")
                 } else {
-                    const e = Math.min(0, Math.max(-2e3, -2e3 * (1 + this.getSpeedKmh() / 100)));
+                    const e = Math.min(0, Math.max(-2e3, -2e3 * (1 + this.getSpeedKmh() / 100))); // -20x-2000, (x<=1)
                     b_(this, KA, "f").applyEngineForce(e, 2),
                     b_(this, KA, "f").applyEngineForce(e, 3),
                     b_(this, KA, "f").setBrake(0, 0),
@@ -26579,7 +26583,7 @@
               , h = -new St(c.x,c.z).normalize().angle() + Math.PI / 2;
             let d = Math.max(0, Math.min(1, this.getSpeedKmh() / 30));
             this.getWheelInContact(0) || this.getWheelInContact(1) || (d = 0);
-            const u = 155 / Math.pow(46, 1.55)
+            const u = 155 / Math.pow(46, 1.55) // 0.41..
               , f = Math.max(-u, Math.min(u, h * d))
               , p = 155 / Math.pow(Math.max(46, Math.abs(this.getSpeedKmh())), 1.55);
             b_(this, c_, "f") && (s && !this.hasFinished() ? x_(this, o_, Math.min(b_(this, o_, "f") + 10 * e, 1), "f") : r && !this.hasFinished() ? x_(this, o_, Math.max(b_(this, o_, "f") - 10 * e, -1), "f") : b_(this, o_, "f") > 0 ? x_(this, o_, Math.max(b_(this, o_, "f") - 10 * e, 0), "f") : b_(this, o_, "f") < 0 && x_(this, o_, Math.min(b_(this, o_, "f") + 10 * e, 0), "f"));
@@ -26630,7 +26634,7 @@
                 x_(this, f_, !1, "f")
         }
         ;
-        const S_ = class {
+        const S_ = class { // This is the class that creates a car and world from: mountains, carCollisionShapeVertices, trackParts vertices, start point, deserialized recording, track (aw.fromSaveString)
             constructor(e, t, n, i, r, a, s, o) {
                 jA.add(this),
                 qA.set(this, void 0),
@@ -26844,40 +26848,40 @@
             step() {
                 var e;
                 if (this.hasStarted() && b_(this, h_, "f").numberOfFrames < Sh.maxFrames) {
-                    const t = 1 / Hh.stepsPerSecond
-                      , n = b_(this, r_, "f")
-                      , i = b_(this, a_, "f");
+                    const t = 1 / Hh.stepsPerSecond // 0.001
+                      , n = b_(this, r_, "f") // position vector
+                      , i = b_(this, a_, "f"); // quaternion
                     (null == b_(this, m_, "f") || b_(this, m_, "f").manhattanDistanceTo(n) > 1.5) && (null == b_(this, m_, "f") ? x_(this, m_, n.clone(), "f") : b_(this, m_, "f").copy(n),
-                    b_(this, YA, "f").activePhysicsAt(n)),
-                    b_(this, jA, "m", w_).call(this),
+                    b_(this, YA, "f").activePhysicsAt(n)), // grid physics to only simulate the collisions that are near the car
+                    b_(this, jA, "m", w_).call(this), // applying 
                     b_(this, jA, "m", y_).call(this, t, b_(this, s_, "f")),
                     b_(this, YA, "f").step();
                     const r = b_(this, t_, "f");
                     b_(this, JA, "f").getWorldTransform(r);
-                    const a = r.getOrigin()
-                      , s = r.getRotation();
-                    if (n.set(a.x(), a.y(), a.z()),
+                    const a = r.getOrigin() // new origin
+                      , s = r.getRotation(); // new rotation
+                    if (n.set(a.x(), a.y(), a.z()), // set collision car position outputs into the three.js object
                     i.set(s.x(), s.y(), s.z(), s.w()),
                     !this.hasFinished()) {
                         const t = b_(this, i_, "f");
-                        t.center.copy(XA.detectorBoxCenter).applyQuaternion(i).add(n),
+                        t.center.copy(XA.detectorBoxCenter).applyQuaternion(i).add(n), // Using oriented box to detect checkpoints. The box is a vertex3 with value: 0,.48,-.15
                         t.rotation.elements = [1 - 2 * (i.y * i.y + i.z * i.z), 2 * (i.x * i.y + i.z * i.w), 2 * (i.x * i.z - i.y * i.w), 2 * (i.x * i.y - i.z * i.w), 1 - 2 * (i.x * i.x + i.z * i.z), 2 * (i.y * i.z + i.x * i.w), 2 * (i.x * i.z + i.y * i.w), 2 * (i.y * i.z - i.x * i.w), 1 - 2 * (i.x * i.x + i.y * i.y)];
-                        const r = b_(this, qA, "f").getTotalNumberOfCheckpointIndices();
-                        if (b_(this, d_, "f") == r)
-                            null != b_(this, qA, "f").checkFinish(t) && x_(this, l_, b_(this, h_, "f").clone(), "f");
+                        const r = b_(this, qA, "f").getTotalNumberOfCheckpointIndices(); // total checkpoints in track
+                        if (b_(this, d_, "f") == r) // checking if nextCheckPointIndex is the last index. Basically if we've crossed all checkpoints yet
+                            null != b_(this, qA, "f").checkFinish(t) && x_(this, l_, b_(this, h_, "f").clone(), "f"); // check if the box intersects with finish
                         else {
-                            const n = b_(this, qA, "f").checkCheckpoint(t, b_(this, d_, "f"));
+                            const n = b_(this, qA, "f").checkCheckpoint(t, b_(this, d_, "f")); // check if the box intersects with only the next checkpoint index
                             if (null != n && (x_(this, d_, (e = b_(this, d_, "f"),
-                            ++e), "f"),
+                            ++e), "f"), // add 1 to the checkpoint counter
                             n.rotationAxis == fd.YPositive)) {
-                                const e = b_(this, jA, "m", v_).call(this);
+                                const e = b_(this, jA, "m", v_).call(this); // car forward-direction
                                 let t = n.rotation * Math.PI / 2;
                                 (0 == n.rotation && e.z < 0 || 1 == n.rotation && e.x < 0 || 2 == n.rotation && e.z > 0 || 3 == n.rotation && e.x > 0) && (t += Math.PI);
                                 const i = (new Kt).setFromEuler(new Fn(0,t,0))
                                   , r = new Zt(0,.35,-1.35);
                                 r.applyQuaternion(i),
                                 n.type != dd.CheckpointWide && n.type != dd.PlaneCheckpointWide || r.sub(new Zt(-10,0,0).applyEuler(new Fn(0,n.rotation * Math.PI / 2,0))),
-                                x_(this, u_, {
+                                x_(this, u_, { // update info of where we are allowed to respawn at
                                     position: new Zt(n.x * cd.partSize + r.x,n.y * cd.partSize + r.y,n.z * cd.partSize + r.z),
                                     quaternion: i,
                                     nextCheckpointIndex: b_(this, d_, "f")
@@ -29151,3 +29155,13 @@
     )()
 }
 )();
+
+
+
+
+
+
+/*  Docs for optimizing speed while driving (from S_ and w_ and y_):
+
+
+*/

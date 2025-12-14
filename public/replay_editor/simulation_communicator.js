@@ -63,6 +63,9 @@ addSharedEventListener("onAmmoLoaded", () => {
     const simfuncs = getShared("simfuncs");
     Object.assign(globalThis, simfuncs); // this will auto define Zt, Kt.. in this scope so Zt() works
 
+    // Q: "Could I have messed up the switch-case or function wrapping?""
+    // A: Note to self: you must use 'break' in or after the '}(e);', otherwise case will incorrectly continue!
+
     (() => {
         let t = new V_([]);
         const n = [];
@@ -132,18 +135,18 @@ addSharedEventListener("onAmmoLoaded", () => {
                         let r, a = null;
                         const s = e.data.carRecording;
                         if (null == s)
-                            r = new sw,
+                            r = new sw, // creating an empty recording buffer that you can add your own inputs to
                                 a = [];
                         else {
                             const e = Sh.deserialize(s);
                             if (null == e)
                                 throw new Error("Failed to deserialize recording");
-                            r = new Y_(e)
+                            r = new Y_(e) // load an inputs map from existing recording
                         }
-                        const o = i.getStartTransform();
+                        const o = i.getStartTransform(); // track start point
                         if (null == o)
                             throw new Error("Track has no starting point");
-                        const l = e.data.carId
+                        const l = e.data.carId // for 'S_ = class' I wrote what it does in full_simulation_bundle.js
                             , c = new S_(e.data.mountainVertices, new Zt(e.data.mountainOffset.x, e.data.mountainOffset.y, e.data.mountainOffset.z), t, i, e.data.carCollisionShapeVertices, e.data.carMassOffset, r, o);
                         n.push({
                             id: l,
