@@ -128,28 +128,27 @@ async function predict(agentState, startTime, carID, reward, finishFrames) {
     if (verbose) console.log(agentState);
     // Direction / steering angle,  Maybe normalized position on track,  Tire slip, if you model that
 
-    let action;
+    let action, valueEstimate;
     tf.tidy(() => { // Do not use promises in .tidy!
-        const { steering, throttle, brake, actionProb, actionIndex } = getAction(policyNetwork, agentState);
+        const agentStateTensor = tf.tensor(agentState).reshape([1, numInputs]);
+        action = getAction(policyNetwork, agentStateTensor);
 
         //console.log('Steering:', steering);
         //console.log('Throttle:', throttle);
         //console.log('Brake:', brake);
-        if (verbose) console.log('Action Probability:', actionProb);
+        if (verbose) console.log('Action Probability:', action.actionProb);
         //console.log('Action Index:', actionIndex);
 
-        action = { steering, throttle, brake, actionProb, actionIndex };
 
+        const vs = valueNetwork.predict(agentStateTensor);
+        valueEstimate = vs.arraySync()[0][0]; // we only have 1 output
 
-        if (info) {
-            const stateTensor = tf.tensor(agentState).reshape([1, numInputs]);
-            const vs = valueNetwork.predict(stateTensor);
-            console.log("Value network estimation:", vs.arraySync()[0][0]); // we only have 1 output
+        if (info) console.log("Value network estimation:", valueEstimate);
 
-            stateTensor.dispose();
-            vs.dispose();
-        }
+        //stateTensor.dispose();
+        //vs.dispose();
     });
+    debugger;
 
     if (!experienceBufferPerCar[carID]) experienceBufferPerCar[carID] = [];
     // First calculate the reward and set nextAgentState of our last experience state
@@ -174,6 +173,7 @@ async function predict(agentState, startTime, carID, reward, finishFrames) {
         frame: currentFrame, //lastSimState.frames,
         agentState: agentState,
         action: action,
+        valueEstimate: valueEstimate,
         reward: null, // currentFrame >= 400 ? 0 : null
         nextAgentState: null,
         done: false // will be marked in next state
@@ -198,8 +198,9 @@ async function predict(agentState, startTime, carID, reward, finishFrames) {
 
 
 async function train(data) {
-    const { carID, carRequestId, progressIndex, epochs = 1, batchSize = 32, gamma = 0.99, learningRate = 0.0003 } = data; // 0.0003
+    const { carID, carRequestId, progressIndex, epochs = 1, batchSize = 32, gamma = 0.99, lambda = 0.95, epsilon = 0.2, learningRate = 0.0003 } = data; // 0.0003
     // epochs are overwriten by ai_environment.js!
+    // Lambda: -> 1: future   -> 0: prefer immedieate
 
     /*await tf.tidy(async () => {
         const xs = tf.tensor2d(inputs, [inputs.length, inputs[0].length]);
@@ -391,13 +392,16 @@ async function train(data) {
     }
 
     // ====== 3. TRAINING LOOP (PPO CORE) ======
-    async function trainPPO(policyNet, valueNet, buffer, learningRate = 3e-4, gamma = 0.99) { // 0.0003
+    async function trainPPO(policyNet, valueNet, buffer) {
+        const { returns, advantages } = calculateGAE(buffer, gamma, lambda);
+
         // 1. Prepare data
         //const { statesTensor, nextStatesTensor } = prepareTrainingData(buffer);
 
         const statesTensor = tf.tensor(buffer.map(e => e.agentState));
         const actionIndices = tf.tensor(buffer.map(e => e.action.actionIndex)).toInt(); // [0, 1, 5, ...] // convert to ints!
-        const oldProbs = tf.tensor(buffer.map(e => e.action.actionProb)); // P(action | old policy)
+        //const oldProbs = tf.tensor(buffer.map(e => e.action.actionProb)); // P(action | old policy)
+        const oldProbs = tf.tensor(buffer.map(e => e.action.logProb)); // P(action | old policy)
 
         // 2. Get current policy probabilities (from buffer)
         /*const actionProbs = tf.tensor(
@@ -640,7 +644,7 @@ async function train(data) {
         totalReward += exp.reward;
     });
 
-    await trainPPO(policyNetwork, valueNetwork, experienceBufferPerCar[carID], learningRate, gamma);
+    await trainPPO(policyNetwork, valueNetwork, experienceBufferPerCar[carID]);
 
     if (totalReward > bestAttempt.totalReward) {
         bestAttempt = { totalReward: totalReward, data: [{ ...experienceBufferPerCar[carID] }], carRecording: "" }; // copy spread into array
@@ -797,29 +801,32 @@ async function deleteModel(name) {
 
 
 
-function getAction(policyModel, state) {
-    const stateTensor = tf.tensor(state).reshape([1, numInputs]);
-    const policyOutput = policyModel.predict(stateTensor); // [1, 12]
+function getAction(policyModel, agentStateTensor) {
+    return tf.tidy(() => {
+        const policyOutput = policyModel.predict(agentStateTensor); // [1, 12]
 
-    // Convert logits to probabilities (softmax over 12 actions)
-    const actionProbs = tf.softmax(policyOutput).arraySync()[0];
+        // Convert logits to probabilities (softmax over 12 actions)
+        const actionProbs = tf.softmax(policyOutput).arraySync()[0];
 
-    // Sample the FULL action (index 0-11)
-    const actionIndex = sampleFromCategorical(actionProbs);
+        // Sample the FULL action (index 0-11)
+        const actionIndex = sampleFromCategorical(actionProbs);
 
-    if (verbose) console.log("Policy output:", policyOutput.arraySync()[0]);
-    if (verbose) console.log("Actionprobs:", actionProbs);
-    //console.log("Chosen action index from policy probabilities: " + actionIndex);
+        if (verbose) console.log("Policy output:", policyOutput.arraySync()[0]);
+        if (verbose) console.log("Actionprobs:", actionProbs);
+        //console.log("Chosen action index from policy probabilities: " + actionIndex);
 
-    // Map index to (steering, throttle, brake)
-    const [steering, throttle, brake] = decodeAction(actionIndex);
+        // Map index to (steering, throttle, brake)
+        const [steering, throttle, brake] = decodeAction(actionIndex);
 
-    // CRITICAL: Return the joint probability for training
-    const actionProb = actionProbs[actionIndex];
+        // CRITICAL: Return the joint probability for training
+        //const actionProb = actionProbs[actionIndex];
 
-    stateTensor.dispose();
-    policyOutput.dispose();
-    return { steering, throttle, brake, actionProb, actionIndex };
+        const logProb = logProbCategorical(policyOutput, actionIndex).arraySync()[0]; // log of 100% is 0, anything less will be to -Infinity
+
+        //stateTensor.dispose();
+        //policyOutput.dispose();
+        return { steering, throttle, brake, /*actionProb,*/ actionIndex, logProb };
+    });
 }
 
 // Map index 0-11 to (steering, throttle, brake)
@@ -847,3 +854,25 @@ function sampleFromCategorical(probs) {
 }
 
 
+function logProbCategorical(logits, action) {
+    return tf.tidy(() => {
+        const numActions = logits.shape[logits.shape.length - 1];
+        const logprobabilitiesAll = tf.logSoftmax(logits);
+        return tf.sum(
+            tf.mul(tf.oneHot(action, numActions), logprobabilitiesAll), // onehot with indices 'action' and depth numActions
+            logprobabilitiesAll.shape.length - 1
+        );
+    })
+}
+
+
+
+function discountedCumulativeSums(arr, gamma) {
+    let res = [];
+    let sum = 0;
+    arr.slice().reverse().forEach(value => {
+        sum = value + sum * gamma;
+        res.push(sum);
+    });
+    return res.reverse();
+}

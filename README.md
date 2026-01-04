@@ -87,10 +87,10 @@ Now all that's left to do is go to the desired track and click on 'Watch' withou
 
 ### My own personal docs (for https://arxiv.org/pdf/1707.06347)
 Avoid large policy updates (action distribution). Clipped surrogate of advantage (Lclip) to get range: [1−ϵ,1+ϵ]  \
-θ: Policy parameters, weights  \
-Policy(state) = action
+θ: Policy parameters, weights, theta  \
+Policy(state) = action  \
 Plug an estimator of policy gradient into πθ  \
-Estimator: gˆ = Eˆt
+Estimator: gˆ = Êₜ()
 h
 ∇θ log πθ(at
 | st)Aˆ
@@ -101,8 +101,9 @@ Q(s, a): a 'feeling'/value of how good the outcome of the action will be based o
 πθ: stochastic policy (stochastic gradient ascent algorithm)  \
 πθold: the policy that took the initial action (old algorithm)  \
 Stochastic: random probability distribution.    π: S * A -> [0,1] or π(s, a)    S: State space. A: Action space. Probability between 0 and 1, softmax  \
-Clip range: [1−ϵ,1+ϵ]. Where ϵ = usually 0.2 to get [0.8,1.2], useful for avoiding large updates  \
+Clip range: [1−ϵ,1+ϵ]. Where ϵ = usually 0.2 to get [0.8,1.2], useful for avoiding large updates. Clip epsilon of ratio r(θ)  \
 Clipped surrogate of advantage (Lclip): Objective function, clip(ratio) * A.    A: Advantage. Ratio: r(θ) * A.  \
+ (Ê(t)): 
 
 Clipping results in a conservative advantage estimate of the new policy: conservative = least risky, less likely to 'grab opportunities'
 
@@ -112,5 +113,48 @@ Pseudo code translated (attempt):
 
 
 Synthetic pain. Fear failure, desire success. Simulating concequences before they happen
-
 Intuitive search, Monte Carlo value network, policy network for actions
+
+
+$\hat{E}_t$ or Êₜ
+
+
+Batch Size: $[32, 64, 128, 256, 512]$  
+$\epsilon$ (clip range): $[0.1, 0.2, 0.3]$  
+$c_2$ (entropy coefficient): $[0, 0.0001, 0.001, 0.01]$  
+$\lambda_{GAE}$: $\mathcal{U}(0.9, 1)$  
+$\gamma$: $\mathcal{U}(0.8, 0.9997)$  
+$lr$ (learning rate): $[0.000003, 0.00003, 0.0003, 0.003]$  
+log_std_init: $[-1, 0, 1, 2, 3]$  
+epochs number: $[3, 6, 9, 12, 15, 18, 21, 24, 27, 30]$  
+steps number: $[512, 1024, 2048, 4096]$  
+normalize advantages: $[True, False]$  
+target_kl: $\mathcal{U}(0.03, 0.003)$  
+$c_1$ (value coefficient): $[0.5, 1]$  
+
+Loss = Policy_Loss - Entropy_Coeff * Entropy_Bonus
+  
+Regularized Loss = Original Loss + lambda ($\lambda$) * Penalty Term
+
+Entropy Coefficient (ent_coef or c2) Decay
+
+
+
+| Parameter         | Description                                                                                     | Typical Range / Notes                     |
+|-------------------|-------------------------------------------------------------------------------------------------|-------------------------------------------|
+| **gamma**       | Discount factor for future rewards. Controls how much future rewards are valued.             | [0, 1], often close to 0.99            |
+| **epsilon**     | Usually a small number for clipping or numerical stability, or for algorithms like PPO.      | e.g., 0.2 (clipping in PPO)             |
+| **target_kl**   | Target value for KL divergence to control policy update size (used in TRPO/PPO).             | Small positive value, e.g., 0.01     |
+| **c1 / c2**     | Coefficients or weights for different loss components (e.g., value loss, entropy).           | Varies depending on implementation     |
+| **lambda**      | GAE's **\(\lambda\)** parameter, often used in TD(λ) and GAE. It controls the bias-variance trade-off in advantage estimation, similar in role to τ but conceptually different. | Usually between 0 and 1             |
+| **log_std_init**| Initial value for the log standard deviation of a policy's Gaussian distribution.            | Real number, e.g., -0.5 or 0          |
+
+
+https://apxml.com/courses/rlhf-reinforcement-learning-human-feedback/chapter-4-rl-ppo-fine-tuning/ppo-advantages-returns  \
+https://github.com/dragen1860/PPO-Pytorch/blob/master/ppo.py#L172  \
+https://github.com/zemlyansky/ppo-tfjs/blob/main/ppo.js#L143  \
+https://medium.com/aureliantactics/ppo-hyperparameters-and-ranges-6fc2d29bccbe  \
+https://joel-baptista.github.io/phd-weekly-report/posts/hyper-op/  \
+https://spinningup.openai.com/en/latest/algorithms/ppo.html  
+
+https://github.com/Linesight-RL/linesight/blob/main/trackmania_rl/buffer_utilities.py#L307 -- wrong
