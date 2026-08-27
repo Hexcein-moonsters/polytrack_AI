@@ -180,7 +180,7 @@ training_worker.onmessage = (e) => {
                 graphData.push(trace);
 
                 medianLine.x.push(Number(groupNum) + trace.y.length / 2); // 1250 for example (1200 + 100/2), as it is half
-                const median = statisticsMath.median(trace.y); // get median of the y values of the trace
+                const median = statisticsMath.median([ ...trace.y ]); // get median of the y values of the trace
                 medianLine.y.push(median);
             }
             graphData.push(medianLine);

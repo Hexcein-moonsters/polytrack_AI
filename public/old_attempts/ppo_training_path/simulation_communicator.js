@@ -30,11 +30,9 @@ function callSharedEventListener(key) {
 const should_recalculatePhysicsVertices = false; // if false, paste obj in trackparts_hardcoded.js. If true, it will generate from glb files
 
 
-const lw = [];
-onmessage = e => {
-    lw.push(e)
-}
-addSharedEventListener("postToWorker", (e) => { onmessage({ data: e }) }); // append 'data'
+// this will be overwriten by 'onmessage = i', Calling onmessage() just calls i() which instantly processes that msg and its type
+onmessage = () => {}; // Here we're just making a temp placeholder for the browser
+addSharedEventListener("postToWorker", (e) => { onmessage({ data: e }) }); // instantly process, by calling i(data)
 
 function postMessage(e) { // worker -> main thread
     callSharedEventListener("onWorkerMessage")(e); // This might give a lot of lag
@@ -68,8 +66,10 @@ addSharedEventListener("onAmmoLoaded", () => {
     Object.assign(globalThis, simfuncs); // this will auto define Zt, Kt.. in this scope so Zt() works
 
     (() => {
-        let t = new V_([]);
-        const n = [];
+        let t = new V_([]); // geometry per unique trackpart id. always the same
+        const n = []; // cars
+        const lw = []; // msg queue used only for old requests (never I think). All other messages just call i(data) directly
+        
         function i(e) {
             switch (e.data.messageType) {
                 case Q_.Init:

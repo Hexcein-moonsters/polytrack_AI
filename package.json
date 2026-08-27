@@ -1,17 +1,21 @@
 {
-  "name": "polytrack_determinism",
+  "name": "polytrack_AI",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "PPO model in Polytrack, using simulation_worker.js and creating replays",
+  "main": "main.js",
   "type": "module",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node main.js",
+    "test": "electron electron/app.js",
+    "both": "concurrently \"node --run start\" \"node --run test\""
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "packageManager": "pnpm@10.26.2",
+  "license": "GPL-3.0-or-later",
+  "packageManager": "pnpm@11.22.0",
   "dependencies": {
     "express": "^5.1.0"
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.5",
+    "electron": "^43.4.0"
   }
 }

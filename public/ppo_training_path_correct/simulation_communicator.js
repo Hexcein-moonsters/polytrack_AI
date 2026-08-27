@@ -29,12 +29,9 @@ function callSharedEventListener(key) {
 
 const should_recalculatePhysicsVertices = false; // if false, paste obj in trackparts_hardcoded.js. If true, it will generate from glb files
 
-
-const lw = [];
-onmessage = e => {
-    lw.push(e)
-}
-addSharedEventListener("postToWorker", (e) => { onmessage({ data: e }) }); // append 'data'
+// this will be overwriten by 'onmessage = i', Calling onmessage() just calls i() which instantly processes that msg and its type
+onmessage = () => { }; // Here we're just making a temp placeholder for the browser
+addSharedEventListener("postToWorker", (e) => { onmessage({ data: e }) }); // instantly process, by calling i(data)
 
 function postMessage(e) { // worker -> main thread
     callSharedEventListener("onWorkerMessage")(e); // This might give a lot of lag
@@ -68,8 +65,13 @@ addSharedEventListener("onAmmoLoaded", () => {
     Object.assign(globalThis, simfuncs); // this will auto define Zt, Kt.. in this scope so Zt() works
 
     (() => {
-        let t = new V_([]);
-        const n = [];
+        let AI_canRun = false; // only step once this gate is enabled. Ensure all 100 cars start synchronized
+        let AI_endEpisodeDetected = false; // checking if carCount=0 is because of end of episode, or because of wrongful AI_canRun change
+
+        let t = new V_([]); // geometry per unique trackpart id. always the same
+        const n = []; // cars
+        const lw = []; // msg queue used only for old requests (never I think). All other messages just call i(data) directly
+
         function i(e) {
             switch (e.data.messageType) {
                 case Q_.Init:
@@ -158,28 +160,37 @@ addSharedEventListener("onAmmoLoaded", () => {
                         })
                     }(e);
                     break;
-                case Q_.DeleteCar:
+                case Q_.DeleteCar: // multiple cars
                     !function (e) {
-                        const t = e.data.carId;
-                        const requestId = e.data.requestId;
-                        for (let e = 0; e < n.length; e++) {
-                            const i = n[e];
-                            if (i.id == t) {
-                                i.model.controls.dispose(),
-                                    i.model.dispose(),
-                                    n.splice(e, 1);
+                        const { carIDs, requestIDs } = e.data;
+                        
+                        const now = performance.now();
+                        for (const carId of carIDs) {
+                            const requestId = requestIDs[carId];
 
-                                let allInputs = [ ...inputsPerCar[t] ]; // copy spread
-                                delete inputsPerCar[t]; // remove inputs data
-                                /*inputsPerCar[t].forEach((input) => {
-                                    allInputs.push(input); // copy
-                                });*/
-                                inputsPerRequest[requestId] = {
-                                    timeAdded: performance.now(),
-                                    inputs: allInputs
-                                };
+                            for (let i = 0; i < n.length; i++) { // cars
+                                const car = n[i];
+                                if (car.id == carId) {
+                                    car.model.controls.dispose(),
+                                        car.model.dispose(),
+                                        n.splice(i, 1);
 
-                                break
+                                    const carInputs = [...inputsPerCar[carId]]; // copy spread, make backup
+                                    delete inputsPerCar[carId]; // remove original inputs data
+
+                                    inputsPerRequest[requestId] = {
+                                        timeCarDeleted: now, // when the delete happened
+                                        inputs: carInputs
+                                    };
+                                }
+                            }
+                        }
+
+                        // cleanup of old inputsPerRequest (10s) of the previous episodes
+                        for (const keyId in inputsPerRequest) {
+                            const requestData = inputsPerRequest[keyId];
+                            if (now - requestData.timeCarDeleted > 10000) { // if >10s, delete old inputs data
+                                delete inputsPerRequest[keyId];
                             }
                         }
                     }(e);
@@ -193,23 +204,10 @@ addSharedEventListener("onAmmoLoaded", () => {
                                 const t = e.data.targetSimulationTimeFrames;
                                 i.targetSimulationTime = null != t ? new Xh(t) : null;
 
-
-
-                                /*
-                                // in our case, we want to auto press forwards at start, as our AI can't do anything until frame 100
-                                i.userControls.push({
-                                    frame: 1,
-                                    up: true,
-                                    right: false,
-                                    down: false,
-                                    left: false,
-                                    reset: false
-                                });*/
-
-                                // Ask the AI for help on the very first frame!
-                                // Edit: nvm, the AI() loop will check if the frame is 1 and in that case it will ask the AI for controls
-
-                                break
+                                // By checking car.firstActionTaken we prevent any physics steps when the car initially starts, causing 100 frames at t=0.
+                                // Then when first AI controls arrive we allow the car to be stepped which stops the (frame=0 & !car.firstActionTaken) check
+                                // So now the AI can get 100 frames of data (t=0), then make the first decision, and then physics sim won't stop the car again (game runs fine)
+                                break;
                             }
                     }(e);
                     break;
@@ -272,50 +270,55 @@ addSharedEventListener("onAmmoLoaded", () => {
                         callSharedEventListener("onCommunicatorReady")("AI_Init"); // call it
                         break;
                     }
+                case Q_.AI_fromEnv_updateCanRun:
+                    {
+                        const { canRun } = e.data;
+                        AI_canRun = canRun;
+                        if (canRun == true) {
+                            console.log("[SIM] Starting synchronised sim again, cleared episodeEndingStates");
+                            episodeEndingStates = {};
+                        }
+                        break;
+                    }
                 case Q_.AI_fromEnv_updateControls:
                     !function (e) {
-                        const carId = e.data.carId;
-                        const c = e.data.newControls;
-                        /*postToWorker({
-                            messageType: Q_.ControlCar,
-                            carId: carId,
-                            up: c.up,
-                            down: c.down,
-                            left: c.left,
-                            right: c.right,
-                            reset: c.reset
-                        });*/
-                        for (const car of n) {
-                            if (car.id == carId) {
+                        const { carIDs, newControlsPerCar, lastFramesPerCar } = e.data;
+
+                        const carIDSet = new Set(carIDs); // can be less than 100
+                        for (const car of n) { // always 100
+                            const carId = car.id;
+                            if (carIDSet.has(carId)) {
+                                const c = newControlsPerCar[carId];
+
+                                const finish = car.model.getFinishTime();
+                                const finishFrames = finish !== null ? finish.numberOfFrames : null;
+                                if (finishFrames !== null) debugger;
+
                                 car.userControls.push({
-                                    frame: car.model.getTime().numberOfFrames, // current frame ('100')
+                                    frame: car.model.getTime().numberOfFrames, // current frame ('100'), we just stepped
                                     up: c.up,
                                     down: c.down,
                                     left: c.left,
                                     right: c.right,
                                     reset: c.reset
                                 });
-                            }
-                        }
 
-                        for (const car of n) { // unpause that car
-                            if (car.id == carId) {
-                                car.isPaused = false;
+                                //car.isPaused = false; // No need anymore, we run all cars at same time
 
                                 // Now also let's step the car if the frame is 0, so it doesn't get stuck at no steps
-                                //if (e.data.lastState.frames == 0) car.firstActionTaken = true;
-                                if (e.data.lastFrame == 0) car.firstActionTaken = true;
+                                const lastFrame = lastFramesPerCar[carId];
+                                if (lastFrame == 0) car.firstActionTaken = true; // tell sim steps are allowed now
                             }
                         }
+
+                        AI_canRun = true; // run loop again
                     }(e)
                     break;
                 case Q_.AI_fromEnv_makeRecordingString:
                     !function (e) {
+                        const { carRequestId, totalReward, progressPercentage, startTime } = e.data;
                         //const inputs = e.data.inputs;
-                        const requestId = e.data.carRequestId;
-                        const inputs = inputsPerRequest[requestId].inputs;
-
-                        console.log("Inputs:", inputs);
+                        const inputs = inputsPerRequest[carRequestId].inputs;
 
                         //VA(this, Jg, new Sh, "f");
                         //GA(this, Jg, "f").recordFrame(n.frames, GA(this, Yg, "f").controls)
@@ -331,9 +334,7 @@ addSharedEventListener("onAmmoLoaded", () => {
                                 reset: input.reset
                             });
                         });
-                        //console.log(replayMaker);
-                        const recording = replayMaker.serialize();
-                        //console.log(recording);
+                        const recording = replayMaker.serialize(); // this is the string
 
                         /*(() => {
                             const deserialized = replayMaker.deserialize(recording);
@@ -346,14 +347,15 @@ addSharedEventListener("onAmmoLoaded", () => {
                         postMessage({
                             messageType: Q_.AI_fromSim_recordingStringResult,
                             carRecording: recording,
-                            totalReward: e.data.totalReward,
-                            progressIndex: e.data.progressIndex,
-                            startTime: e.data.startTime
+                            requestId: carRequestId,
+                            totalReward: totalReward,
+                            progressPercentage: progressPercentage,
+                            startTime: startTime
                         });
                     }(e);
             }
         }
-        for (const e of lw)
+        for (const e of lw) // process any requests that came in while loading the sim
             i(e);
         function r() {
             if (3.141592653589793 != Math.PI)
@@ -646,7 +648,7 @@ addSharedEventListener("onAmmoLoaded", () => {
             })
         }
 
-        function AI() {
+        /*function AI() {
             let nonPausedCars = []; // A (good) consequence of this is that a car that got unpaused while 100 steps are processing, will not be in the original nonPausedCars. So all cars will always get exactly 100 steps
             for (const car of n) { // n = cars, if length 0 then this for loop won't waste cpu. And will return right after
                 if (!car.isPaused) nonPausedCars.push(car);
@@ -784,12 +786,6 @@ addSharedEventListener("onAmmoLoaded", () => {
                 if (car.model.hasFinished()) continue;
                 if (car.model.hasStarted()) { // don't go over cars that are currently paused (by us)
                     car.isPaused = true; // just skip the PauseCar event, instantly pause it
-
-                    /*postToWorker({
-                        messageType: Q_.PauseCar,
-                        carId: car.id,
-                        isPaused: true,
-                        }); // send to self as we have no friends :(*/
                 };
             }
 
@@ -819,6 +815,158 @@ addSharedEventListener("onAmmoLoaded", () => {
                 messageType: Q_.AI_fromSim_controlsrequested,
                 statesPerId: statesPerId
             });
+        }*/
+
+        let episodeEndingStates = {}; // contains all data of 19901-19999, or of early finishers
+        function AI() {
+            if (!AI_canRun) return; // keep the loop but don't process anything
+            let t = {}; // car states to send. Changed to perCarId object instead of array for easier lookup
+
+            let runningCars = [];
+            for (const car of n) {
+                if (isRunning(car)) {
+                    runningCars.push(car);
+                    t[car.id] = []; // init structured perCarId states storage
+                }
+            }
+            if (runningCars.length == 0) {
+                if (AI_endEpisodeDetected) { // All cars are done. Signal training to start
+                    console.log("[SIM] All done! Stopping sim and starting training");
+                    AI_canRun = false; // pause entire sim loop while cars are doing training
+                    AI_endEpisodeDetected = false; // reset trigger to detect false canRun values
+
+                    const carIDs = Object.keys(episodeEndingStates).map(str => Number(str)); // should be 0-99, as numbers
+
+                    postMessage({
+                        messageType: Q_.AI_fromSim_episodeEnding,
+                        carIDs: carIDs,
+                        lastStatesPerId: episodeEndingStates // 19900-19999 of all 100 cars
+                    });
+                    return;
+                } else {
+                    throw new Error("AI_canRun was set to true, but no (valid) cars exist, and it isn't the end of an episode either. Raw cars: " + n);
+                }
+            }
+
+            for (const car of runningCars) { // I've switched around the order of the 'for cars' and 'for i < 100'
+                const shouldRandomize = Math.random() < 0.5; // 50% chance of random controls lasting 1 frame
+                const startOfEpoch = car.model.getTime().numberOfFrames; // 700, instead of somewhere random in 700-799. Start of the 100-batch for this prediction
+                const frameToRandomizeAt = startOfEpoch + Math.floor(Math.random() * 99) + 1; // int 1-99, not 0-100, then add start frame of this sim batch
+                const pickLeft = Math.random() < 0.5; // 50% chance of toggling the left key instead of right key
+                const holdingTime = 1; // hold randomized control for 1ms
+                // Grab current baseline active controls so restoreControlsTo is never undefined
+                let restoreControlsTo = { ...car.model.controls }; // edited whenever new inputs come in
+
+                // a loop of 100 means it will simulate 100ms ingame and then wait for new controls. = 10 actions per second
+                // The sim will also only parse controls of 0-99, while frame is already at 1-100
+                for (let e = 0; e < 100; e++) { // you can run EXTREMELY fast stuff by not relying on setInterval and instead doing a 'for'
+                    if (car.model.hasFinished()) break; // completely exit this car
+                    if (!car.model.hasStarted()) continue;
+
+                    // a(e) also steps the sim and gives state info (unless we pass 'false' to it to not step, custom)
+                    const currentTime = car.model.getTime(); // Will always be 1 less than the final state as it hasn't stepped yet.
+                    const currentFrame = currentTime.numberOfFrames;
+                    if (
+                        currentFrame < Sh.maxFrames && // "bh.maxFrames = 5999999;" = checking if sim has lasted less than 99.9 minutes
+                        currentTime.lessThan(car.targetSimulationTime) &&
+                        !car.isPaused
+                    ) {
+                        if (currentFrame == 0) {
+                            if (car.firstActionTaken === undefined) { // custom field, let sim not play until AI has taken its first choice, only then start stepping
+                                const startState = a(car, false); // add a single state without stepping the game
+                                // Because the frames won't be stepped yet, this car will be at numberOfFrames = 0 for the rest of the 100 loops.
+                                // This means t will be filled with 100 states where the model is just standing still.
+                                t[car.id].push(startState);
+                                continue; // skip over this car
+                            } // because we skipped, the delete statement is actually in the 'else'. Now we've already had a first action
+
+                            // The block after this frame=0 check actually step the car, because we didn't 'continue;'
+                            delete car.firstActionTaken; // Because frame>0 right after this, this field is useless now
+                        }
+                        if (shouldRandomize && restoreControlsTo) {
+                            if (currentFrame === frameToRandomizeAt + holdingTime) { // 1 frame after it has randomized
+                                car.userControls.push({ // revert the controls
+                                    ...restoreControlsTo,
+                                    frame: currentFrame // current frame ('167'). Overwrites restoreControlsTo.frame
+                                });
+                            }
+                            if (currentFrame === frameToRandomizeAt) { // on the frame it should randomize at
+                                const controls = {
+                                    ...restoreControlsTo,
+                                    frame: currentFrame // current frame ('166')
+                                };
+                                
+                                if (pickLeft) controls.left = !controls.left; // invert left
+                                else controls.right = !controls.right; // invert right
+
+                                car.userControls.push(controls);
+                            }
+                        }
+
+                        if (car.userControls != null) { // list of queued controls
+                            // Will loop until the first control is on this frame, throwing away all previous controls, while being O(n) filter
+                            while (car.userControls.length > 0 && car.userControls[0].frame <= currentFrame) {
+                                const t = car.userControls.shift(); // removes first element and sets 't' to the removed element
+                                if (t != null) {
+                                    const n = car.model.controls;
+                                    n.up = t.up;
+                                    n.right = t.right;
+                                    n.down = t.down;
+                                    n.left = t.left;
+                                    n.reset = t.reset;
+
+                                    if (shouldRandomize && currentFrame < frameToRandomizeAt) { // as long as it's before the randomize frame
+                                        restoreControlsTo = { ...t }; // store our last controls
+                                    }
+
+                                    const carID = car.id;
+                                    if (!inputsPerCar[carID]) inputsPerCar[carID] = []; // init for tracking inputs
+                                    inputsPerCar[carID].push(t); // this also has frame number in it
+                                }
+                            }
+                        }
+
+                        const newState = a(car); // auto steps by 1 frame
+                        t[car.id].push(newState);
+                    }
+                }
+            }
+
+            let stillRunningCount = 0;
+            for (const car of runningCars) { // only of the cars we just processed
+                if (isRunning(car)) {
+                    stillRunningCount++;
+                } else { // car has finished or ran out of time
+                    const states = t[car.id];
+                    if (states.length == 1) states.push(states[0]); // always ensure secondLastState is defined, have length=2
+
+                    episodeEndingStates[car.id] = states; // add 100 last frames to that finished episode
+
+                    const lastState = states[states.length - 1];
+                    lastState.done = true;
+                }
+            }
+            if (stillRunningCount == 0) AI_endEpisodeDetected = true;
+            // Training is only done in the next loop. For now, just ask for new actions so even expired cars are seen by training_worker.js
+            // so AI can populate their nextAgentState/reward too. (Was already fixed for only finished cars, but expiry happens all at once)
+
+            AI_canRun = false; // pause entire sim loop while cars are doing prediction
+            postMessage({
+                messageType: Q_.AI_fromSim_controlsrequested,
+                statesPerId: t // includes cars that have just finished! This ensures predictBatch
+            });
+        }
+
+        function isRunning(car) {
+            const currentTime = car.model.getTime();
+            // Not finished yet and timer still hasn't reached target time (20s) nor max time (100m)
+            if (
+                !car.model.hasFinished()
+                && currentTime.numberOfFrames < Sh.maxFrames // kinda useless cus targetSimulationTime is always way below 100m
+                && currentTime.lessThan(car.targetSimulationTime)
+            ) { return true; }
+            
+            return false;
         }
 
     })();
@@ -880,3 +1028,23 @@ function loadScript(src, callback) {
     };
     document.head.appendChild(script);
 }
+
+
+
+// I want 100 cars running (in parallel?) at realtime speed or preferably higher. Each car gets stepped 100 times to simulate 100ms, then pauses the car to allow it to take an action (10Hz, sim is currently set to max 20s). Sim is 1000Hz. For 100 cars to be realtime, this means 10K steps per real 100ms or 100K steps per real second. However I'd like it to be even faster.
+// Requirements: sim must stay completely deterministic, that's all. Current issues unrelated to stepping might be that it's waiting for the training_worker.js to give an action prediction. I've also noticed CPU is always like 15%, sometimes a bit lower. 'APPO' algorithm (Asynchronous PPO) is the end goal. I'm not sure if I should step all cars at same time, then batch predict everything, then train all, then respawn all at same time, or should I just randomly spawn cars so it's always doing something
+// Main thread is full_simulation.bundle.js (the sim), simulation_communicator.js (the AI() func and what calls steps and gets states), ai_environment.js (makes reward, observations, and talks to worker). Worker thread is only training_worker.js, it hosts the 2 AI models and runs any .predict needed and also does training. A very annoying problem is that the worker has no line-per-line performance profiling via chrome, only like a chart result - main thread does have lineperline.
+
+// Current benchmarks:
+// - total inference (200 steps) with 100 cars spawned at random time offsets takes 124 seconds.
+// - training varies a lot between 800-1600ms, but average at 900ms for 16 epochs and 32minibatchsize.
+// - each predict action callback also varies a lot between 120-190ms, but sometimes I see big batches at ~900-1800ms, possibly because another car is training at that time?
+// - When spawning only 10 cars at around the same time, predicts take about 12-18ms, inference being 5.2s, but the moment one starts training predicts skyrocket to 2000ms for many cars, and in the end when loops are stabilized inference takes 12.6s
+// - 10 cars with 500ms offset training takes about 800ms but when another one is also training it skyrockets to twice or triple the duration. Predict skyrocketing has same problem. Inference also 12.5s.
+// - Single car, predict between 1-3ms, inference around 1.2s, training around 850ms too, but obviously no peaks because it's the only car.
+
+// APPO (asynchronous?):
+// tfjs. well currently my sim has multiple cars with some time offset, each one pauses the car every 100ms and asks a separate worker thread that hosts a single policy/critic network to predict actions. Then when the car runs out of time it trains the policy. However stale gradients are a massive problem for me
+// Car is highly encouraged to find the fastest route, any shortcut is allowed as long as the checkpoints are all gathered in order, and then finish is reached. I have progress points by a random player run on the track to measure nearest progress point within one checkpoint segment so AI can maximize progress rate, that's why I won't be telling it much what to do. Discrete actions, 12 key combinations as categorical sampler output, but inputs are continious
+
+// Good idea: all cars are synchronous, and only send over one packet of the lastState of all cars, where a single .predict call is done on all cars, keeping everything synchronous. No stale gradients, and much much faster. Training is only a single call, and all cars are always waiting on each other.

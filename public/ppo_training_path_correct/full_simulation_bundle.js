@@ -27115,11 +27115,12 @@
 
             // new events, made by me! (Forge)
             e[e.AI_Init = 11] = "AI_Init",
-            e[e.AI_fromEnv_CreateCar = 12] = "AI_fromEnv_CreateCar",
+            e[e.AI_fromEnv_updateCanRun = 12] = "AI_fromEnv_updateCanRun",
             e[e.AI_fromSim_controlsrequested = 13] = "AI_fromSim_controlsrequested",
             e[e.AI_fromEnv_updateControls = 14] = "AI_fromEnv_updateControls",
-            e[e.AI_fromEnv_makeRecordingString = 15] = "AI_fromEnv_makeRecordingString",
-            e[e.AI_fromSim_recordingStringResult = 16] = "AI_fromSim_recordingStringResult"
+            e[e.AI_fromSim_episodeEnding = 15] = "AI_fromSim_episodeEnding",
+            e[e.AI_fromEnv_makeRecordingString = 16] = "AI_fromEnv_makeRecordingString",
+            e[e.AI_fromSim_recordingStringResult = 17] = "AI_fromSim_recordingStringResult"
         }(G_ || (G_ = {}));
         const Q_ = G_;
 

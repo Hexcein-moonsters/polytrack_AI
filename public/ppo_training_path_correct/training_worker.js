@@ -1,24 +1,8 @@
 const workerTimeOrigin = performance.timeOrigin;
+importScripts('/lib/tfjs.js');
 
-importScripts('/lib/tfjs.js'); // if I change this to '/lib/tfjs.js' then physicsParts somehow breaks. I assume it's cus of load time
-// Edit: I fixed the load order and event/waiting, a quick local tfjs load will work. (The old url was: https://cdn.jsdelivr.net/npm/@tensorflow/tfjs)
-//<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest"></script>
-//<script src="https://cdn.jsdelivr.net/npm/ppo-tfjs"></script>
-// https://github.com/zemlyansky/ppo-tfjs
-
-/*type WorkerMessage =
-  | { type: 'model_init'; data: { name: string } }
-  | { type: 'predict'; data: { inputs: number[][] } }
-  | { type: 'train'; data: { 
-        inputs: number[][],     // [batchSize, numInputs]
-        targets: number[][],    // [batchSize, numOutputs]
-        epochs?: number,        // optional
-        batchSize?: number      // optional
-    } };*/
-
-const numInputs = 93;   // your input features (100)
-//const numOutputs = 1;    // AI outputs (5)
-
+let numInputs = 0; // will be updated at model_init
+const numStack = 1;
 
 
 let experienceBufferPerCar = {};
@@ -27,18 +11,25 @@ const info = false;
 
 // will be updated by model_init
 let timeOffset = 0;
-let calculateReward;
-//const getTime = () => timeOffset + performance.now(); // function
-const getTime = () => performance.now() + timeOffset;
+const getTime = () => performance.now() + timeOffset; // function to get time of main thread
 
 let policyNetwork, valueNetwork;
 self.onmessage = async (e) => {
     if (e.data instanceof ArrayBuffer) { // Not that redundant, as this check is often true since 'predict' is called lots of times
         // This means we must be in 'predict'
-        const arr = [... new Float32Array(e.data)]; // convert to array by spread-cloning // data.buffer
+        const batchBuffer = new Float32Array(e.data);
+        predictBatch(batchBuffer);
 
-        const startsAtIndex = arr[0];
-        predict(arr.slice(startsAtIndex), arr[1], arr[2], arr[3], arr[4]); // pass all floats starting from the start index. This means it removes our index header and the extra non-state floats
+        /*const startsAtIndex = flatBuffer[0];
+        const startTime     = flatBuffer[1];
+        const carID         = flatBuffer[2];
+        const reward        = flatBuffer[3];
+        const finishFrames  = flatBuffer[4];
+
+        // Zero-copy slice pointing straight to your agent state floats
+        const agentStateView = flatBuffer.subarray(startsAtIndex); // sliced from start index, headers and extra non-state floats are removed
+
+        predict(agentStateView, startTime, carID, reward, finishFrames);*/
     } else {
         const { type, data } = e.data;
 
@@ -75,22 +66,9 @@ self.onmessage = async (e) => {
 
 async function model_init(data) {
     const mainTimeOrigin = data.mainTimeOrigin;
-    //console.log(mainTimeOrigin, performance.timeOrigin);
-    //timeOffset = mainTimeOrigin - workerTimeOrigin;
     timeOffset = workerTimeOrigin - mainTimeOrigin;
-    //console.log(mainTime, workerTime);
-    //console.log("Offset:", timeOffset);
-    //console.log(workerTime + timeOffset);
-    //console.log("Worker time before calibration: " + performance.now());
-    //console.log("Worker time After calibration: " + getTime());
 
-    //console.log("Main thread sent msg at: " + data.timeVerify + " which was " + (getTime() - data.timeVerify) + "ms ago");
-
-    if (false) { // kinda useless as env sends reward as float, we don't need to calculate it
-        const funcStr = data.calculateReward;
-        const functionBody = funcStr.substring(funcStr.indexOf("{") + 1, funcStr.lastIndexOf("}"));
-        calculateReward = new Function("states", functionBody); // add states param
-    }
+    numInputs = data.numInputs;
 
     let isNewModel = false;
     if (await modelExists(data.name)) {
@@ -114,23 +92,14 @@ async function predict(agentState, startTime, carID, reward, finishFrames) {
     if (info) console.log(((getTime()) - startTime).toFixed(5));
     const currentFrame = agentState[0]; // we know it is at start
     if (finishFrames == 0) finishFrames = null; // restore malformed data by float32array
-    /*self.postMessage({
-        type: "outputs",
-        data: {
-            carID: carID,
-            outputs: { steering: 0, throttle: 0, brake: 0 },
-            lastFrame: 0
-        }
-    });*/
-    //console.log(data.states);
-    //const lastSimState = data.states[data.states.length - 1];
-    //const agentState = getAgentState(data.states);
     if (verbose) console.log(agentState);
     // Direction / steering angle,  Maybe normalized position on track,  Tire slip, if you model that
 
     let action, valueEstimate;
     tf.tidy(() => { // Do not use promises in .tidy!
-        const agentStateTensor = tf.tensor(agentState).reshape([1, numInputs]);
+        //const agentStateTensor = tf.tensor(agentState).reshape([1, numInputs]);
+        // Create the tensor directly out of the raw Float32Array view
+        const agentStateTensor = tf.tensor1d(agentState).reshape([1, numInputs]);
         action = getAction(policyNetwork, agentStateTensor);
 
         //console.log('Steering:', steering);
@@ -144,11 +113,8 @@ async function predict(agentState, startTime, carID, reward, finishFrames) {
         valueEstimate = vs.arraySync()[0][0]; // we only have 1 output
 
         if (info) console.log("Value network estimation:", valueEstimate);
-
-        //stateTensor.dispose();
-        //vs.dispose();
     });
-    debugger;
+
 
     if (!experienceBufferPerCar[carID]) experienceBufferPerCar[carID] = [];
     // First calculate the reward and set nextAgentState of our last experience state
@@ -180,548 +146,526 @@ async function predict(agentState, startTime, carID, reward, finishFrames) {
     });
     if (verbose) console.log("Experience buffer:", experienceBufferPerCar);
 
-    /*if (carID == 0) {
-        console.log(lastSimState.frames);
-    }*/
-
     self.postMessage({
         type: "outputs",
         data: {
             carID: carID,
             outputs: action,
-            //originalStates: data.states
-            //lastFrame: data.states[data.states.length - 1].frames
             lastFrame: currentFrame // var name is confusing but it means the frame of the last state we're at
         }
     });
 }
-
-
-async function train(data) {
-    const { carID, carRequestId, progressIndex, epochs = 1, batchSize = 32, gamma = 0.99, lambda = 0.95, epsilon = 0.2, learningRate = 0.0003 } = data; // 0.0003
-    // epochs are overwriten by ai_environment.js!
-    // Lambda: -> 1: future   -> 0: prefer immedieate
-
-    /*await tf.tidy(async () => {
-        const xs = tf.tensor2d(inputs, [inputs.length, inputs[0].length]);
-        const ys = tf.tensor2d(targets, [targets.length, targets[0].length]);
-
-        await model.fit(xs, ys, {
-            epochs,
-            batchSize,
-            verbose: 0
-        });
-    });*/
-
-
-
-
-    /*function computeReturns(episodeData, gamma, lambda) {
-        const returns = [];
-        let R = 0;
-        for (let t = episodeData.length - 1; t >= 0; t--) {
-            const { reward, done } = episodeData[t];
-            R = reward + (done ? 0 : gamma * R);
-            returns.unshift(R);
-        }
-        return returns;
-    }
-
-    function computeAdvantages(episodeData, returns, gamma, lambda) {
-        const advantages = [];
-        let advantage = 0;
-        for (let t = episodeData.length - 1; t >= 0; t--) {
-            const { reward, done } = episodeData[t];
-            const nextAdvantage = t === episodeData.length - 1 || done ? 0 : advantages[t + 1];
-            advantage = reward + gamma * nextAdvantage - returns[t];
-            advantages.unshift(advantage);
-        }
-        return advantages;
-    }
-
-
-    async function trainPPO(experienceBuffer, policyModel, valueNetwork, gamma, epsilon, numEpochs, batchSize) {
-        const policyOptimizer = tf.train.adam(0.001);
-        const valueOptimizer = tf.train.adam(0.001);
-
-        for (let epoch = 0; epoch < numEpochs; epoch++) {
-            for (let i = 0; i < experienceBuffer.length; i += batchSize) {
-                const batch = experienceBuffer.slice(i, i + batchSize);
-
-                // Extract states, actions, rewards, next states, and dones
-                const states = batch.map(entry => entry.state);
-                const actions = batch.map(entry => entry.action);
-                const rewards = batch.map(entry => entry.reward);
-                const nextStates = batch.map(entry => entry.nextState);
-                const dones = batch.map(entry => entry.done);
-
-                // Convert to tensors
-                const stateTensor = tf.tensor2d(states);
-                const actionTensor = tf.tensor2d(actions.map(a => [a.steering, a.throttle, a.brake]));
-                const rewardTensor = tf.tensor1d(rewards);
-                const nextStateTensor = tf.tensor2d(nextStates);
-                const doneTensor = tf.tensor1d(dones);
-
-                // Compute returns and advantages
-                const returns = computeReturns(batch, gamma, 0.95);
-                const advantages = computeAdvantages(batch, returns, gamma, 0.95);
-                const advantageTensor = tf.tensor1d(advantages);
-
-                // Predict mean and log variance from policy network
-                const [mean, logVar] = policyModel.predict(stateTensor);
-
-                // Compute probabilities using Gaussian distribution
-                const std = tf.exp(logVar);
-                const actionDist = tf.distributions.Normal(mean, std);
-                const actionProb = actionDist.prob(actionTensor);
-
-                // Compute value estimates
-                const valueEstimates = valueNetwork.predict(stateTensor);
-                const nextValueEstimates = valueNetwork.predict(nextStateTensor);
-
-                // Compute target values for value network
-                const targetValues = tf.add(
-                    rewardTensor,
-                    tf.mul(tf.sub(tf.tensor1d([1.0]), doneTensor), tf.mul(gamma, nextValueEstimates))
-                );
-
-                // Compute value loss
-                const valueLoss = tf.mean(tf.square(tf.sub(valueEstimates, targetValues)));
-
-                // Compute policy loss
-                const ratio = tf.div(actionProb, oldActionProb); // oldActionProb from previous step
-                const clippedRatio = tf.clipByValue(ratio, 1 - epsilon, 1 + epsilon);
-                const policyLoss = tf.minimum(
-                    tf.mul(ratio, advantageTensor),
-                    tf.mul(clippedRatio, advantageTensor)
-                );
-                policyLoss = tf.neg(tf.mean(policyLoss));
-
-                // Optimize
-                await policyOptimizer.minimize(policyLoss);
-                await valueOptimizer.minimize(valueLoss);
-
-                // Dispose tensors
-                stateTensor.dispose();
-                actionTensor.dispose();
-                rewardTensor.dispose();
-                nextStateTensor.dispose();
-                doneTensor.dispose();
-                advantageTensor.dispose();
-                mean.dispose();
-                logVar.dispose();
-                actionDist.dispose();
-                actionProb.dispose();
-                valueEstimates.dispose();
-                nextValueEstimates.dispose();
-                targetValues.dispose();
-                valueLoss.dispose();
-                policyLoss.dispose();
-            }
-        }
-    }*/
-
-    //await trainPPO(experienceBuffer, policyNetwork, valueNetwork, 0.99, 0.1, 10, 32); // 
-
-
-
-
-
-
-    // ====== 1. PREPARE DATA FROM BUFFER (CONVERT TO TENSORS) ======
-    /*function prepareTrainingData(buffer) {
-        // Convert raw state arrays to tensors
-        const states = buffer.map(entry => entry.agentState);
-        const nextStates = buffer.map(entry => entry.nextAgentState);
-
-        // Convert to tensors [batch, numInputs]
-        const statesTensor = tf.tensor(states, [buffer.length, numInputs]);
-        const nextStatesTensor = tf.tensor(nextStates, [buffer.length, numInputs]);
-
-        return { statesTensor, nextStatesTensor };
-    }
-
-    // ====== 2. ADVANTAGE CALCULATION (KEY PPO STEP) ======
-    function computeAdvantages(valueNet, statesTensor, nextStatesTensor, rewards, doneFlags, gamma = 0.99) {
-        // Get V(s) and V(s') predictions
-        const vs = valueNet.predict(statesTensor);
-        const vsNext = valueNet.predict(nextStatesTensor);
-
-        // Convert to tensors for math operations
-        const vsTensor = tf.squeeze(vs);
-        const vsNextTensor = tf.squeeze(vsNext);
-
-        // Compute target: V(s) ≈ r + γ * V(s') (TD(0) target)
-        const targets = tf.add(rewards, tf.mul(gamma, vsNextTensor));
-
-        // Compute advantage: A(s,a) = r + γV(s') - V(s)
-        const advantages = tf.sub(targets, vsTensor);
-
-        // Cleanup tensors (critical for browser memory!)
-        vs.dispose();
-        vsNext.dispose();
-        vsTensor.dispose();
-        vsNextTensor.dispose();
-
-        return advantages;
-    }*/
-
-
-
-
-    // == 3. HELPER: GET PROBABILITY OF CHOSEN ACTION ==
-    function computePolicyProbabilities(policyOutputs, actionIndices) {
-        // policyOutputs: [batch, 12]
-        // actionIndices: [batch] (e.g., [0, 5, 11, ...])
-        return tf.gather(policyOutputs, actionIndices, 1);
-    }
-
-    // == 4. ADVANTAGE CALCULATION (VALUE NETWORK USED HERE) ==
-    function computeAdvantages(valueNet, statesTensor, buffer, gamma = 0.99) {
-        const vs = valueNet.predict(statesTensor); // V(s)
-        const nextStates = tf.tensor(buffer.map(e => e.nextAgentState));
-        const vsNext = valueNet.predict(nextStates); // V(s')
-
-        // Adv = r + γV(s') - V(s)
-        const rewards = tf.tensor(buffer.map(e => e.reward));
-        const advantages = tf.add(
-            rewards,
-            tf.mul(gamma, tf.squeeze(vsNext))
-        );
-        return tf.sub(advantages, tf.squeeze(vs));
-    }
-
-    // ====== 3. TRAINING LOOP (PPO CORE) ======
-    async function trainPPO(policyNet, valueNet, buffer) {
-        const { returns, advantages } = calculateGAE(buffer, gamma, lambda);
-
-        // 1. Prepare data
-        //const { statesTensor, nextStatesTensor } = prepareTrainingData(buffer);
-
-        const statesTensor = tf.tensor(buffer.map(e => e.agentState));
-        const actionIndices = tf.tensor(buffer.map(e => e.action.actionIndex)).toInt(); // [0, 1, 5, ...] // convert to ints!
-        //const oldProbs = tf.tensor(buffer.map(e => e.action.actionProb)); // P(action | old policy)
-        const oldProbs = tf.tensor(buffer.map(e => e.action.logProb)); // P(action | old policy)
-
-        // 2. Get current policy probabilities (from buffer)
-        /*const actionProbs = tf.tensor(
-            buffer.map(entry => entry.action.actionProb),
-            [buffer.length, 1]
-        );*/
-
-        // Get NEW policy probabilities for the *exact actions taken* (key!)
-        //const newProbs = computePolicyProbabilities(
-        //    policyNet.predict(statesTensor), // [batch, 12]
-        //    actionIndices                    // [batch] (indices of chosen actions)
-        //);
-
-        //const advantages = computeAdvantages(valueNet, statesTensor, buffer);
-
-
-        // PPO LOSS (clipped ratio)
-        //const ratios = tf.div(newProbs, oldProbs);
-        //const clippedRatios = tf.clipByValue(ratios, 1 - 0.2, 1 + 0.2);
-        //const policyLoss = tf.neg(
-        //    tf.mean(tf.minimum(
-        //        tf.mul(ratios, advantages),
-        //        tf.mul(clippedRatios, advantages)
-        //    ))
-        //);
-
-        // VALUE LOSS (MSE between V(s) and target)
-        //const vs = valueNet.predict(statesTensor);
-        //const targets = tf.add(
-        //    tf.tensor(buffer.map(e => e.reward)),
-        //    tf.mul(0.99, tf.squeeze(vs))
-        //);
-        //const valueLoss = tf.losses.meanSquaredError(targets, tf.squeeze(vs));
-
-        // UPDATE NETWORKS
-        //optimizer.minimize(() => policyLoss, true, policyNet.trainableWeights);
-        //optimizer.minimize(() => valueLoss, true, valueNet.trainableWeights);
-
-        const optimizer = tf.train.adam(learningRate);
-
-
-        // PPO loss is computed per sample, but we process all samples at once using vectorized tensor operations.
-        // This is standard in deep learning (and why we use tensors, not loops).
-        /* Why You Should Never Loop in TF.js:
-            * Memory overhead: Each loop iteration creates temporary tensors.
-            * Slowness: Browser JavaScript loops are slow (no GPU acceleration).
-            * TF.js is designed for batch processing—it expects vectorized operations.
-        */
-        const lossFn = () => {
-            // Compute NEW policy probabilities (for chosen actions)
-            const newProbs = computePolicyProbabilities(
-                policyNet.predict(statesTensor),
-                actionIndices
-            );
-            // console.log("New Probs:", newProbs.arraySync());
-            // console.log(actionIndices.shape);
-            // console.log(actionIndices.arraySync());
-            // console.log("Old Probs:", oldProbs.arraySync());
-            // console.log("Shapes - new:", newProbs.shape, "old:", oldProbs.shape);
-
-            // Compute ADVANTAGES (using value network)
-            const advantages = computeAdvantages(valueNet, statesTensor, buffer, gamma);
-
-
-            // Why are these not implemented anywhere?
-            // Value Loss Coefficient (c1): Weight given to the critic loss in the total objective.
-            // Entropy Coefficient (c2): Encourages exploration by penalizing low entropy i.e. overconfident policies.
-
-
-            // PPO LOSS (clipped ratio)
-            const ratios = newProbs.div(oldProbs);
-            const clippedRatios = tf.clipByValue(ratios, 1 - 0.2, 1 + 0.2);
-            const policyLoss = tf.neg(
-                tf.mean(tf.minimum(
-                    ratios.mul(advantages),
-                    clippedRatios.mul(advantages)
-                ))
-            );
-
-            // VALUE LOSS
-            const vs = valueNet.predict(statesTensor);
-            const targets = tf.add(
-                tf.tensor(buffer.map(e => e.reward)),
-                tf.mul(gamma, tf.squeeze(vs))
-            );
-            const valueLoss = tf.losses.meanSquaredError(targets, tf.squeeze(vs));
-            // console.log("Value Loss:", valueLoss.arraySync(), "Policy Loss:", policyLoss.arraySync());
-            // console.log("Total loss:", tf.add(policyLoss, valueLoss).arraySync());
-
-            /*losses.push({
-                policyLoss: policyLoss.arraySync(),
-                valueLoss: valueLoss.arraySync(),
-                totalLoss: tf.add(policyLoss, valueLoss).arraySync()
-            });*/
-            losses.push(tf.add(policyLoss, valueLoss).arraySync()); // total loss only
-
-            // Return total loss (PPO + value loss)
-            return tf.add(policyLoss, valueLoss);
-        };
-
-        let losses = [];
-
-        tf.tidy(() => {
-            for (let epoch = 0; epoch < epochs; epoch++) {
-
-                console.log("Epoch " + (epoch + 1) + "/" + epochs);
-
-                optimizer.minimize(lossFn, true, [
-                    ...policyNet.trainableWeights.map(w => w.val),
-                    ...valueNet.trainableWeights.map(w => w.val)
-                ]);
-
-            }
-            console.log("Losses over epochs:", losses);
+async function predictBatch(batchBuffer) {
+    const batchSize = batchBuffer[0]; // car count
+    const headerSize = batchBuffer[1];
+    const floatsPerCar = batchBuffer[2];
+    const observationOffset = batchBuffer[3];
+    const batchStartTime = batchBuffer[4];
+
+    if (info) console.log((getTime() - batchStartTime).toFixed(5));
+
+    const observations = [];
+    const carsData = [];
+    for (let i = 0; i < batchSize; i++) {
+        const carDataOffset = headerSize + i * floatsPerCar;
+
+        const carID = batchBuffer[carDataOffset + 0];
+        carsData.push({
+            carID: carID,
+            reward: batchBuffer[carDataOffset + 1],
+            doneType: batchBuffer[carDataOffset + 2],
+            currentFrame: batchBuffer[carDataOffset + 3]
         });
 
-        // 4. ✅ CLEANUP (ESSENTIAL FOR BROWSER)
-        statesTensor.dispose();
-        actionIndices.dispose();
-        oldProbs.dispose();
-
-
-        //optimizer.minimize(() => policyLoss, () => policyWeights);
-        //optimizer.minimize(() => valueLoss, () => valueWeights);
-
-        /*
-        statesTensor.dispose();
-  actionIndices.dispose();
-  oldProbs.dispose();
-  newProbs.dispose();
-  advantages.dispose();
-   */
-
-
-        // 3. Compute advantages
-        /*const rewards = tf.tensor(buffer.map(entry => entry.reward));
-        const doneFlags = tf.tensor(buffer.map(entry => entry.done ? 1 : 0));
-        const advantages = computeAdvantages(
-            valueNet,
-            statesTensor,
-            nextStatesTensor,
-            rewards,
-            doneFlags,
-            0.99 // gamma. Higher is for long-term rewards, lower is for immediate rewards
-        );*/
-
-        // 4. Compute new policy probabilities (from current network)
-        //const policyOutputs = policyNet.predict(statesTensor);
-        //const newProbs = computePolicyProbabilities(policyOutputs); // See helper below
-
-        // 5. Compute ratio = π_new(a|s) / π_old(a|s)
-        //const ratios = tf.div(newProbs, actionProbs);
-
-        // 6. Compute PPO loss (clipped surrogate objective)
-        /*const clippedRatios = tf.clipByValue(
-            ratios,
-            1 - 0.2,  // ε = 0.2 (standard PPO clip range) // Clip Range (ε): Controls how much the new policy can deviate from the old one ensuring stable updates.
-            1 + 0.2
+        // COPY INSTEAD OF SUBARRAY VIEW, otherwise detached memory reads which silently return NaN. THIS TOOK ME A MONTH!!!!!
+        const obsSlice = batchBuffer.slice( // USE SLICE INSTEAD OF SUBARRAY, slice auto makes a copy
+            carDataOffset + observationOffset,
+            carDataOffset + floatsPerCar
         );
-        const surr1 = tf.mul(ratios, advantages); // 'surrogate'
-        const surr2 = tf.mul(clippedRatios, advantages);
-        const policyLoss = tf.neg(tf.mean(tf.minimum(surr1, surr2)));
-
-        // 7. Compute value loss (MSE between V(s) and target)
-        const vs = valueNet.predict(statesTensor);
-        const targets = tf.add(rewards, tf.mul(0.99, tf.squeeze(vs)));
-        const valueLoss = tf.losses.meanSquaredError(targets, tf.squeeze(vs));
-
-        // 8. Update networks
-        const optimizer = tf.train.adam(learningRate);
-
-        // Policy network update
-        optimizer.minimize(() => policyLoss, true, policyNet.trainableWeights);
-
-        // Value network update
-        optimizer.minimize(() => valueLoss, true, valueNet.trainableWeights);*/
-
-        // 9. Cleanup tensors (MUST DO TO PREVENT MEMORY LEAKS)
-        /*statesTensor.dispose();
-        nextStatesTensor.dispose();
-        rewards.dispose();
-        doneFlags.dispose();
-        advantages.dispose();
-        actionProbs.dispose();
-        policyOutputs.dispose();
-        newProbs.dispose();
-        ratios.dispose();
-        surr1.dispose();
-        surr2.dispose();
-        policyLoss.dispose();
-        valueLoss.dispose();*/
+        for (let k = 0; k < obsSlice.length; k++) {
+            if (!Number.isFinite(obsSlice[k])) {
+                console.error(`Infinity/NaN detected in raw obsSlice! Car ${carID}, index ${k}:`, obsSlice[k]);
+                debugger;
+            } else if (Math.abs(obsSlice[k]) > 10000) {
+                // Physics engine explosion (e.g. 1e35). Clamp it so it doesn't cause Infinity gradients.
+                console.warn(`Extreme physics value in obsSlice! Car ${carID}, index ${k}:`, obsSlice[k]);
+                debugger;
+            }
+        }
+        observations.push(obsSlice);
     }
 
+    let actions;
+    let valueEstimates;
+    tf.tidy(() => {
+        //const statesTensor = tf.tensor2d(observations); // [batchSize x numInputs]
+        // Map each Float32Array to 2D tensor [1, N] and concat on batch axis
+        const statesTensor = tf.concat(observations.map(obs => tf.tensor2d(obs, [1, obs.length])));
 
-
-    // ====== 4. HELPER: CONVERT POLICY OUTPUT TO PROBABILITIES ======
-    /*function computePolicyProbabilities(policyOutputs) {
-        // policyOutputs: [batch, 5] (3 steering + 1 throttle + 1 brake)
-        const [steeringLogits, throttleLogit, brakeLogit] = [
-            policyOutputs.slice([0, 0], [-1, 3]),
-            policyOutputs.slice([0, 3], [-1, 4]),
-            policyOutputs.slice([0, 4], [-1, 5])
-        ];
-
-        // Convert to probabilities
-        const steeringProbs = tf.softmax(steeringLogits);
-        const throttleProb = tf.sigmoid(throttleLogit);
-        const brakeProb = tf.sigmoid(brakeLogit);
-
-        // Compute joint probability for the exact action taken
-        // (e.g., steering=-1, throttle=0, brake=1)
-        const actionMask = tf.tensor(buffer.map(entry => {
-            return entry.action.steering === -1 ? 0 :
-                entry.action.steering === 0 ? 1 : 2;
-        }), [buffer.length, 1]);
-
-        // Extract probability for chosen steering
-        const chosenSteeringProb = tf.gather(steeringProbs, actionMask, 1);
-
-        // Compute joint probability: P(steering) * P(throttle) * P(brake)
-        const jointProb = tf.mul(
-            chosenSteeringProb,
-            tf.mul(throttleProb, brakeProb)
-        );
-
-        return jointProb;
-    }*/
-
-    let totalReward = 0;
-    experienceBufferPerCar[carID].forEach((exp, index) => { // Count up all rewards (not needed for training) but also fix the 'null' rewards to 0
-        if (exp.reward == null) { // last state
-            experienceBufferPerCar[carID][index].reward = 0; // I have no idea if exp is direct reference or copy, so I'll just do both ways of 0 as fallback
-            exp.reward = 0;
-            //console.log("Set a reward to 0 at:", exp);
-        }
-        if (exp.nextAgentState == null) {
-            // Change nextAgentState to copy of current agentState, gaslighting it into thinking nothing changed
-            experienceBufferPerCar[carID][index].nextAgentState = [...exp.agentState]; // spread copy, idk if necessary, probably not
-        }
-        totalReward += exp.reward;
+        actions = getActions(policyNetwork, statesTensor);
+        valueEstimates = valueNetwork.predict(statesTensor).arraySync(); // size x [1]
     });
 
-    await trainPPO(policyNetwork, valueNetwork, experienceBufferPerCar[carID]);
+    let actionsPerCar = {};
+    let framesPerCar = {}; // currentFrame
+    for (let i = 0; i < batchSize; i++) {
+        const { carID, reward, currentFrame, doneType } = carsData[i];
+        
+        const agentState = observations[i];
+        const action = actions[i];
+        const valueEstimate = valueEstimates[i][0];
 
-    if (totalReward > bestAttempt.totalReward) {
-        bestAttempt = { totalReward: totalReward, data: [{ ...experienceBufferPerCar[carID] }], carRecording: "" }; // copy spread into array
-        console.log("NEW BEST ATTEMPT:", bestAttempt.totalReward, "with data:", bestAttempt.data);
+        actionsPerCar[carID] = action;
+        framesPerCar[carID] = currentFrame;
 
-        /*let actions = [];
-        experienceBufferPerCar[carID].forEach((exp) => {
-            //console.log("Action of this best attempt at frame " + exp.frame + ":", exp.action);
-            actions.push({
-                frame: exp.frame,
-                action: exp.action
-            });
-        });*/
+        if (!experienceBufferPerCar[carID]) experienceBufferPerCar[carID] = [];
+        // First calculate the reward and set nextAgentState of our last experience state
+        const xpLength = experienceBufferPerCar[carID].length;
+        if (xpLength > 0) { // are we on our second state
+            const exp = experienceBufferPerCar[carID][xpLength - 1];
 
+            exp.reward = reward;
+            exp.nextAgentState = agentState; // store our current observed 'result' input agentState into the last nextAgentState
+            if (doneType !== 0) { // car has finished or expired
+                delete actionsPerCar[carID];
+                delete framesPerCar[carID];
+                
+                exp.done = true;
+                if (doneType == 1) exp.timeout = false; // finished
+                else if (doneType == 2) { // expired, truncated
+                    exp.timeout = true;
+                    exp.nextValueEstimate = tf.tidy(() => {
+                        const nextTensor = tf.tensor2d(exp.nextAgentState, [1, exp.nextAgentState.length]); // [1 x numInputs]
+                        return valueNetwork.predict(nextTensor).dataSync()[0]; // [1], select first number
+                    });
+                }
+                else throw new Error("invalid doneType:" + doneType);
 
-        postMessage({
-            type: "bestAttempt_createRecordingString", // Takes about 50ms for response
-            data: {
-                carRequestId: carRequestId, // this will make simulation_communicator.js pull from the inputs list of that original specific DeleteCar request
-                //actions: actions,
-                totalReward: totalReward,
-                progressIndex: progressIndex, // main can show stats
-                startTime: performance.now()
+                continue; // no need to add our useless action if we're already done
             }
+            if (info) console.log("Real reward:", reward, "at frame " + experienceBufferPerCar[carID][xpLength - 1].frame);
+        }
+        
+        // NEXTAGENTSTATE is completely useless!! I only use it for potential debugging, but it isn't used in any other code
+
+        // Let's push the agentState and action of the current frame now
+        experienceBufferPerCar[carID].push({
+            frame: currentFrame, //lastSimState.frames,
+            agentState: agentState,
+            action: action,
+            valueEstimate: valueEstimate,
+            reward: null, // currentFrame >= 400 ? 0 : null
+            nextAgentState: null,
+            done: false, // will be marked in next state
+            timeout: false // marked in next state
         });
     }
 
-    console.log("Car " + carID + " got " + totalReward + " total reward");
-    delete experienceBufferPerCar[carID]; // remove our experience
+    // actionsPerCar only has non-finished cars now, sim only sees carIDs that aren't finished yet
+    self.postMessage({
+        type: "outputs",
+        data: {
+            carIDs: Object.keys(actionsPerCar).map(str => Number(str)),
+            outputsPerCar: actionsPerCar,
+            lastFramesPerCar: framesPerCar // frame number of last state we're at
+        }
+    });
+}
+
+
+
+setInterval(() => {
+    const memoryInfo = tf.memory();
+    console.log(`GPU Memory: ${memoryInfo.numBytesInGPU} bytes, Tensors: ${memoryInfo.numTensors}`);
+
+    if (policyOpt) {
+        console.log("Iterations: " + policyOpt.iterations);
+    }
+}, 10000);
+function average(arr) {
+    return arr.reduce((a, b) => a + b, 0) / arr.length;
+}
+function getVariance(arr) { // explained variance
+    const mean = average(arr);
+    return arr.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / arr.length; // R2
+}
+
+
+
+const lastLearningRates = {
+    policy: 0,
+    value: 0 // ensure both LR's auto rebuild both optimizers on startup
+};
+let policyOpt, valueOpt;
+
+async function train(data) {
+    //const { carId, carRequestId, progressIndex, epochs = 1, batchSize = 32, gamma = 0.99, lambda = 0.95, clipEpsilon = 0.2, learningRate = 0.0003 } = data; // 0.0003
+    const { carIDs, requestIDs, progressPercentages, PPO_CONFIG } = data;
+    const { // default hyperparams
+        gamma = 0.99,
+        lambda = 0.95,          // GAE lambda
+        clipEpsilon = 0.2,
+        policyLearningRate = 3e-4,
+        valueLearningRate = 1e-3,
+        entropyCoef = 0.01,     // c2
+        valueCoef = 0.5,        // c1
+        epochs = 10,
+        minibatchSize = 32,
+        maxGradNorm = 0.5
+        // MORE HYPERPARAMS??? I DONT KNOW
+    } = PPO_CONFIG;
+    console.log(entropyCoef);
+
+    // update optimizers if any learning rate configs are different
+    if (policyLearningRate !== lastLearningRates.policy) {
+        if (policyOpt) policyOpt.dispose(); // fix mem leak
+        lastLearningRates.policy = policyLearningRate;
+        policyOpt = tf.train.adam(policyLearningRate); // update optimizer if changes
+    }
+    if (valueLearningRate !== lastLearningRates.value) {
+        if (valueOpt) valueOpt.dispose(); // fix mem leak
+        lastLearningRates.value = valueLearningRate; // update last LR
+        valueOpt = tf.train.adam(valueLearningRate);
+    }
+
+    // Why c1 (valueCoef) isn't used: Loss total = Loss_policy + (c1 * Loss_value) - (c2 * Entropy)
+    // We don't use total loss, as trunk (inputs+hidden) of models (policy and value) aren't shared
+
+
+    function trainPPO(policyNet, valueNet, carBuffers, carIDs) { // doesn't need to be async
+        const flatBuffer = carIDs.flatMap(carId => carBuffers[carId]);
+
+        for (let idx = 0; idx < flatBuffer.length; idx++) {
+            const exp = flatBuffer[idx];
+            for (let k = 0; k < exp.agentState.length; k++) {
+                if (!Number.isFinite(exp.agentState[k])) { // also catches NaN
+                    console.error(`Corrupted exp buffer found at index ${idx}! Float ${k} is ${exp.agentState[k]}.`, exp);
+                    debugger;
+                }
+            }
+        }
+
+        // Calculate Advantages and Returns first
+        let explainedVariance = 0;
+        const avgReturnPerCar = {};
+
+        const data = tf.tidy(() => {
+            const states = tf.concat(flatBuffer.map(e => tf.tensor2d(e.agentState, [1, e.agentState.length])));
+            const actions = tf.tensor1d(flatBuffer.map(e => e.action.actionIndex), 'int32');
+            const logProbs = tf.tensor1d(flatBuffer.map(e => e.action.logProb));
+
+            // Reuse old value estimates
+            const values = flatBuffer.map(e => e.valueEstimate);
+            for (const value of values) if (!Number.isFinite(value)) throw new Error(`Invalid valueEstimate: ${value}`);
+
+            const advs = new Array(flatBuffer.length); // advantages
+            const rets = new Array(flatBuffer.length); // returns
+
+            // Calculate GAE per car trajectory to prevent boundary leakage across cars
+            let valueOffset = 0;
+            for (const carId of carIDs) {
+                const buffer = carBuffers[carId];
+                
+                validateCarBuffer(buffer, carId);
+
+                let gae = 0;
+                let sumCarReturn = 0;
+                for (let t = buffer.length - 1; t >= 0; t--) {
+                    const exp = buffer[t];
+                    const valueIndex = valueOffset + t;
+                    const value = values[valueIndex];
+
+                    // 0&2: Normal transition (middle), or truncated (timeout): δ_t = r_t + γV(s_{t+1}) - V(s_t)
+                    // 1: Finish (no next states):                              δ_t = r_t               - V(s_t)
+                    // 2, reason of yes nextValueEstimate: episode horizon reached, but environment/car could continue driving. Timelimit can be increased, world didn't fully end
+                    
+                    let nextValue;
+                    let nextNonTerminal; // 1 = there exist more states after this, including if timed out (truncated). If clean finish, = 0
+                    if (!exp.done) { // Normal transition
+                        nextValue = values[valueIndex + 1]; // not terminal/done, select next rollout value
+                        nextNonTerminal = 1;
+                    } else if (exp.timeout) { // Time-limit, truncated: environment could theoretically continue, so use next final exp
+                        nextValue = exp.nextValueEstimate; // V(nextAgentState) of expired car
+                        nextNonTerminal = 1;
+                    } else { // Terminal, finished
+                        nextValue = 0; // 0, doesn't bootstrap on done (non-truncated)
+                        nextNonTerminal = 0;
+                    }
+
+                    const delta = exp.reward + (gamma * nextValue * nextNonTerminal) - value; // if finished (done but not timeout), multiplied by 0
+                    gae = delta + (gamma * lambda * gae * nextNonTerminal);
+
+                    const returnValue = gae + value;
+                    advs[valueIndex] = gae;
+                    rets[valueIndex] = returnValue;
+
+                    sumCarReturn += returnValue;
+                }
+                avgReturnPerCar[carId] = sumCarReturn / buffer.length;
+
+                valueOffset += buffer.length;
+            }
+
+            const residuals = rets.map((ret, index) => ret - values[index]); // how much better/worse was the return than the value estimate
+            const varReturns = getVariance(rets);
+            const varResiduals = getVariance(residuals);
+            explainedVariance = varReturns > 1e-8 ? 1 - (varResiduals / varReturns) : 0;
+
+            const advantagesTensor = tf.tensor1d(advs);
+            const returnsTensor = tf.tensor1d(rets);
+
+            return { // any tensors returned, auto survive tf.tidy
+                statesTensor: states,
+                actionsTensor: actions,
+                oldLogProbs: logProbs,
+                advantages: advantagesTensor,
+                returns: returnsTensor
+            };
+        });
+        let tensorsToDispose = [data.statesTensor, data.actionsTensor, data.oldLogProbs, data.advantages, data.returns];
+
+        // Optimization Epochs
+        let pLosses = [];
+        let vLosses = [];
+        let approxKLs = [];
+        let newLogProbs = [];
+        let entropies = [];
+        for (let i = 0; i < epochs; i++) {
+            const indices = tf.util.createShuffledIndices(flatBuffer.length); // random data order each epoch to get different minibatches
+
+            for (let j = 0; j < indices.length; j += minibatchSize) {
+                const batchIndicesArray = Array.from(indices.slice(j, j + minibatchSize)); // uint8array -> array
+                const actualSize = batchIndicesArray.length; // Size of the remainder, or of full minibatchsize
+
+                tf.tidy(() => {
+                    // The padded copies will be thrown out via tf.slice right after predict
+                    const paddedIndices = [...batchIndicesArray];
+                    while (paddedIndices.length < minibatchSize) {
+                        paddedIndices.push(batchIndicesArray[0]); // copies first index (shuffled), so bStatesPadded turns into copies of the first observation. all other data isn't padded
+                    }
+
+                    const paddedBatchIdxTensor = tf.tensor1d(paddedIndices, 'int32');
+                    const trueBatchIdxTensor = tf.tensor1d(batchIndicesArray, 'int32'); // true batch data
+
+                    const bStatesPadded = data.statesTensor.gather(paddedBatchIdxTensor); // padded data, fed straight into policynet/valuenet
+
+                    // Gather only data from true batch, the padded indices don't have any data
+                    const bActions  = data.actionsTensor.gather(trueBatchIdxTensor);
+                    const bOldLPs   = data.oldLogProbs.gather(trueBatchIdxTensor);
+                    const bAdvs     = data.advantages.gather(trueBatchIdxTensor); // not normalized yet. SB3 normalizes per minibatch instead of global
+                    const bReturns  = data.returns.gather(trueBatchIdxTensor);
+                    
+                    // Normalize advantages
+                    let normalizedBAdvs = bAdvs;
+                    if (actualSize > 1) {
+                        const mean = bAdvs.mean();
+                        // Don't use commented out code, at 32 minibatch it is 1.6% too low because it uses N instead of N-1. This was population std instead of sample std
+                        //const std = tf.sqrt(tf.mean(tf.square(tf.sub(bAdvs, mean))).add(1e-8));
+                        const std = tf.sqrt( // sample standard deviation, uses N - 1, then gets average (sum and div). sqrt( Σ(x - mean)² / (N - 1) )
+                            tf.div(tf.sum(tf.square(tf.sub(bAdvs, mean))), actualSize - 1).add(1e-8) // prevent std=0, which would div by 0 in normalizedBAdvs
+                        );
+                        normalizedBAdvs = tf.div(tf.sub(bAdvs, mean), std);
+                    }
+
+                    // Using variableGrads for separate policy and value losses, and separate clipping
+                    let approxKL, avgNewLogProb, avgEntropy;
+                    const { value: pLoss, grads: policyGrads } = tf.variableGrads(() => { // just gather variablegrads for policy loss, so we can clip them without affecting value loss
+                        // Forward pass of shape [miniBatchSize, inputSize], always same size, no webgl shader cache bugs at all
+                        let logits = policyNet.apply(bStatesPadded); // get gradients for policy params. This is what policyGrads will optimize!
+                        
+                        // Slice to remove padding and only get real size. Gradients flowing backwards through slice are natively 0-padded
+                        logits = tf.slice(logits, [0, 0], [actualSize, logits.shape[1]]);
+
+                        const logProbsAll = tf.logSoftmax(logits);
+
+                        // Retrieve log-probs of taken actions
+                        const bNewLPs = tf.sum(tf.mul(tf.oneHot(bActions, 12), logProbsAll), 1); // for each action taken, get log-prob of that action from the output logits of new policy. "log πθ(a|s)""
+
+                        const logDiff = tf.sub(bNewLPs, bOldLPs); // PPO ratio = new - old.
+                        const ratio = tf.exp(logDiff); // Exp of log gives us actual probabilities
+
+                        // Clipped Objective
+                        const surr1 = tf.mul(ratio, normalizedBAdvs);
+                        const surr2 = tf.mul(tf.clipByValue(ratio, 1 - clipEpsilon, 1 + clipEpsilon), normalizedBAdvs);
+                        const policyLoss = tf.neg(tf.mean(tf.minimum(surr1, surr2)));
+
+                        // Entropy Bonus (encourages exploration)
+                        const probs = tf.softmax(logits);
+                        // RETURN 1e8 LOGIC?
+                        const entropy = tf.neg(tf.mean(tf.sum(tf.mul(probs, logProbsAll), 1))); // log-sum-exp prevents division by 0 already
+
+                        avgNewLogProb = bNewLPs.mean().arraySync();
+                        approxKL = tf.mean(tf.sub( // mean((exp(logRatio) - 1) - logRatio)
+                            ratio, // exp, actual probabilities
+                            tf.add(logDiff, 1)
+                        )).arraySync(); // mean(oldLogProbs - newLogProbs) KL divergence, too large = it's destroying itself
+                        avgEntropy = entropy.arraySync();
+                        return tf.add(policyLoss, tf.mul(tf.neg(entropyCoef), entropy)); // pLoss - c2*entropy, we negate entropy because we want to maximize it (more exploration), but optimizers minimize loss)
+                    });
+                    pLosses.push(pLoss.arraySync());
+                    approxKLs.push(approxKL);
+                    newLogProbs.push(avgNewLogProb);
+                    entropies.push(avgEntropy);
+
+                    const { value: vLoss, grads: valueGrads } = tf.variableGrads(() => { // gather variablegrads for only valueloss
+                        let vPreds = valueNet.apply(bStatesPadded);
+
+                        // Slice to remove padding. Same logic as policy predict
+                        vPreds = tf.slice(vPreds, [0, 0], [actualSize, vPreds.shape[1]]);
+
+                        // [actualSize], matching bReturns shape
+                        const flattenedPreds = tf.reshape(vPreds, [-1]); // squeeze, but no collapse to 0-dimensions
+
+                        // Currently no vLoss clipping, SB3 default is 'clip_range_vf = None', so it currently works
+                        return tf.losses.meanSquaredError(bReturns, flattenedPreds);
+                    });
+                    vLosses.push(vLoss.arraySync());
+
+                    // Apply clipped gradients and dispose them
+                    const applyClipped = (gradsObj, opt, debugName) => {
+                        const gradKeys = Object.keys(gradsObj.grads);
+                        const grads = Object.values(gradsObj.grads);
+
+                        const squaredNorms = grads.map(g => tf.sum(tf.square(g)));
+                        const totalNorm = tf.sqrt(tf.addN(squaredNorms));
+                                                
+                        // min(1, maxGradNorm/totalNorm), prevent division by 0
+                        const scaleFactor = tf.minimum(tf.scalar(1), tf.div(tf.scalar(maxGradNorm), totalNorm.add(1e-8)));
+
+                        const scaledGradsObj = {};
+                        gradKeys.forEach((key, index) => {
+                            scaledGradsObj[key] = tf.mul(grads[index], scaleFactor);
+                        });
+                        opt.applyGradients(scaledGradsObj);
+                    };
+                    applyClipped({ grads: policyGrads }, policyOpt, "policy");
+                    applyClipped({ grads: valueGrads }, valueOpt, "value");
+                });
+            }
+        }
+        // Dispose data.returns.mean() too
+        const averageStateReturn = tf.tidy(() => data.returns.mean().arraySync()); // average GAE discounted reward of every action, return for one action, not return of whole episode
+
+        tf.dispose(tensorsToDispose);
+
+        return {
+            // performance criteria
+            averageStateReturn: averageStateReturn, // discounted reward. More reward = better
+            avgReturnPerCar: avgReturnPerCar,
+            // critic criteria
+            averageValueLoss: average(vLosses), // downward curve = valueNet (critic) understands the world better
+            explainedVariance: explainedVariance, // valueNet: 1=perfect, 0=no better than average baseline, <0 worse than baseline = harmful estimates
+            // stability criteria
+            averagePolicyLoss: average(pLosses), // policy optimizing, can be noisy but should go down
+            approxKLDivergence: average(approxKLs), // mean(oldLogProbs - newLogProbs). Safe updates = lower than 0.02 otherwise self-destruction
+            // exploration criteria
+            averageEntropy: average(entropies), // exploration. Downward curve = mastering instead of guessing. Shouldn't be too low (otherwise it repeats bad actions)
+            averageNewLogProbs: average(newLogProbs) // Higher = more confidence. Not too high, else it's (somehow) overfitting
+        };
+    }
+
+    let highestReward = [ -1e6, -1 ]; // [0] is the reward, [1] is the carId that got it
+    let totalRewardPerCar = {};
+    for (const carId of carIDs) {
+        let totalReward = 0;
+        experienceBufferPerCar[carId].forEach((exp, index) => { // Count up all rewards (not needed for training) but also fix the 'null' rewards to 0
+            if (exp.reward == null || exp.nextAgentState == null) throw new Error("Incomplete experience state at index " + index + ": ", exp, experienceBufferPerCar[carId]);
+            totalReward += exp.reward;
+        });
+        totalRewardPerCar[carId] = totalReward;
+        if (totalReward > highestReward[0]) highestReward = [ totalReward, carId ]; // first index is the reward, second is cardId
+    }
+
+    const carBuffers = {}; // obj
+    for (const carId of carIDs) {
+        const buffer = experienceBufferPerCar[carId];
+        carBuffers[carId] = buffer;
+
+        for (const exp of buffer) {
+            if (!exp.action || !Number.isFinite(exp.action.logProb)) throw new Error("No action logProb on exp");
+        }
+        if (!(buffer && buffer.length > 0)) throw new Error("exp buffer doesn't exist");
+    }
+
+    const { averageStateReturn, avgReturnPerCar, averageValueLoss, explainedVariance, averagePolicyLoss, approxKLDivergence, averageEntropy, averageNewLogProbs }
+        = trainPPO(policyNetwork, valueNetwork, carBuffers, carIDs);
+    //console.log("Average policy loss:", averagePolicyLoss.toFixed(4), "and average value loss:", averageValueLoss.toFixed(4));
+
+
+    if (highestReward[0] > bestAttempt.totalReward) {
+        const [ totalReward, carId ] = highestReward;
+        const progressPercentage = progressPercentages[carId];
+        const requestId = requestIDs[carId];
+        bestAttempt = { totalReward: totalReward, data: [ ...experienceBufferPerCar[carId] ], carRecording: "" }; // copy spread into array
+        console.log("NEW BEST ATTEMPT:", totalReward, "with data:", [bestAttempt.data], "(carId=" + carId + "). The progress percentage is " + progressPercentage);
+
+        postMessage({
+            type: "bestAttempt_createRecordingString", // Takes about 3ms for response of 20s or 200 inputs, (and 8s when 420 inputs because of randomization) 
+            data: {
+                carRequestId: requestId, // this will make simulation_communicator.js pull from the inputs list of that original specific DeleteCar request
+                startTime: performance.now(),
+                totalReward: totalReward, // main can show simple stats
+                progressPercentage: progressPercentage
+            }
+        });
+    }
+    
+    const oldLength = bestProgresses.length;
+    for (const carId of carIDs) {
+        const progressPercentage = progressPercentages[carId];
+        const totalReward = totalRewardPerCar[carId];
+        const requestId = requestIDs[carId];
+
+        if (progressPercentage > 50) { // 50% or more
+            bestProgresses.push({
+                requestId: requestId,
+                progressPercentage: progressPercentage,
+                totalReward: totalReward
+            });
+        }
+        console.log("Car " + carId + " got " + totalReward + " total reward");
+        delete experienceBufferPerCar[carId]; // remove our experience
+    }
+    if (bestProgresses.length !== oldLength) console.log("best progresses:", bestProgresses); // only log if there are new bests
+    if (Object.keys(experienceBufferPerCar).length !== 0) throw new Error("A car still has experience, did it not get added to carIDs in train()?");
 
     self.postMessage({
         type: 'train_done',
         data: {
-            carID: carID,
-            totalReward: totalReward, // totalReward and the progres are used for stats graph in main
-            progressIndex
+            carIDs: carIDs,
+            requestIDs: requestIDs,
+            stats: { // main shows complex graph stats
+                totalRewardPerCar,
+                progressPercentages,
+                avgReturnPerCar,
+
+                averageStateReturn, // overall average
+                averageValueLoss,
+                explainedVariance,
+                averagePolicyLoss,
+                approxKLDivergence,
+                averageEntropy,
+                averageNewLogProbs
+            }
         }
     });
 }
+let bestAttempt = { totalReward: -1e6, data: [] }; // reset fallback
+let bestProgresses = [];
 
-let bestAttempt = { totalReward: 0, data: [] }; // reset fallback
 
 
 function recordingStringDone(data) {
-    const { carRecording, totalReward } = data;
+    const { carRecording, totalReward, progressPercentage, startTime, requestId } = data;
     if (bestAttempt.totalReward == totalReward) {
         bestAttempt.carRecording = carRecording;
         console.log(bestAttempt);
-        console.log("Getting recording took " + (performance.now() - data.startTime).toFixed(2) + "ms");
+        console.log("RequestID " + requestId + " got bestattempt replay string: " + carRecording);
+        console.log("Getting recording took " + (performance.now() - startTime).toFixed(2) + "ms");
     } else { // Normally this always arrives in sync, but just in case. Nvm it can sometimes happen
         console.warn("Our bestAttempt has been updated while we were requesting carRecording string");
     }
 }
-
-
-
-/*async function getReward(carID, statesOfPreviousExperience) {
-    return new Promise((resolve) => {
-        self.postMessage({ type: 'calculateReward', carID: carID, states: statesOfPreviousExperience });
-        console.log("requesting reward for " + carID);
-
-        const handler = (e) => {
-            if (e.data.type === "calculateReward_response") {
-                const data = e.data.data;
-                console.log(data.carID + " sent response of reward");
-                if (data.carID == carID) { // check if this is OUR car
-                    resolve(data);
-                }
-            }
-        };
-        addEventListener('message', handler, { once: true }); // handler will auto delete when received
-    });
-}*/
-
-
-
-
 
 
 
@@ -730,42 +674,50 @@ async function saveModel(model, name) {
     //console.log(`Model saved as ${name}`);
 }
 function createModel(numInputs) {
-    // Shared hidden layers (used by both policy & value networks)
-    const sharedLayers = [
-        tf.layers.dense({ units: 256, activation: 'relu', name: 'hidden1' }),
-        tf.layers.dense({ units: 128, activation: 'relu', name: 'hidden2' }),
-        tf.layers.dense({ units: 64, activation: 'relu', name: 'hidden3' })
-    ];
+    const totalInputs = numInputs * numStack;
+    
+    function buildNetwork(outputUnits, namePrefix) {
+        const model = tf.sequential();
 
-    function createPolicyNetwork(numInputs) {
-        const input = tf.input({ shape: [numInputs] });
-        let x = input;
-        for (const layer of sharedLayers) x = layer.apply(x);
-        // CORRECT: 12 logits for all 12 valid actions
-        const policyHead = tf.layers.dense({ units: 12, activation: 'linear' }).apply(x);
-        return tf.model({ inputs: input, outputs: [policyHead] });
+        // Layer 1
+        model.add(tf.layers.dense({
+            units: 256,
+            activation: 'relu',
+            inputShape: [totalInputs], // x4
+            kernelInitializer: 'glorotNormal',
+            name: `${namePrefix}_dense1`
+        }));
+
+        // Layer 2
+        model.add(tf.layers.dense({
+            units: 128,
+            activation: 'relu',
+            kernelInitializer: 'glorotNormal',
+            name: `${namePrefix}_dense2`
+        }));
+
+        // Layer 3
+        model.add(tf.layers.dense({
+            units: 64,
+            activation: 'relu',
+            kernelInitializer: 'glorotNormal',
+            name: `${namePrefix}_dense3`
+        }));
+
+        // Output Layer
+        model.add(tf.layers.dense({
+            units: outputUnits,
+            activation: 'linear', // Use linear for logits and value
+            name: `${namePrefix}_output`
+        }));
+
+        return model;
     }
-    function createValueNetwork(numInputs) {
-        const input = tf.input({ shape: [numInputs] });
-        let x = input;
-        // Shared hidden layers (same as policy network)
-        for (const layer of sharedLayers) {
-            x = layer.apply(x);
-        }
-        // Value head: Single scalar output (state value)
-        const valueHead = tf.layers.dense({ units: 1, activation: 'linear', name: 'value' }).apply(x);
-        return tf.model({ inputs: input, outputs: [valueHead] });
-    }
-
-    const finalPolicyNetwork = createPolicyNetwork(numInputs);
-    const finalValueNetwork = createValueNetwork(numInputs);
-
-
 
     return {
-        policyNetwork: finalPolicyNetwork,
-        valueNetwork: finalValueNetwork
-    }
+        policyNetwork: buildNetwork(12, 'policy'), // 12 logits for all 12 valid actions
+        valueNetwork: buildNetwork(1, 'value') // Value head: Single scalar output (state value)
+    };
 }
 async function modelExists(name) {
     const models = await tf.io.listModels();
@@ -778,21 +730,6 @@ async function deleteModel(name) {
 
     self.postMessage({ type: 'delete_model_done' });
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
@@ -828,6 +765,41 @@ function getAction(policyModel, agentStateTensor) {
         return { steering, throttle, brake, /*actionProb,*/ actionIndex, logProb };
     });
 }
+function getActions(policyModel, statesTensor) {
+    return tf.tidy(() => {
+        const logits = policyModel.predict(statesTensor); // [batchSize, 12]
+
+        const arr = logits.arraySync();
+        if (Number.isNaN(arr[0][0])) {
+            console.log("BAD");
+        }
+
+        const actionProbs = tf.softmax(logits).arraySync();
+        const logProbsAll = tf.logSoftmax(logits).arraySync();
+
+        const actions = [];
+        for (let i = 0; i < actionProbs.length; i++) {
+            const actionIndex = sampleFromCategorical(actionProbs[i]);
+
+            const [steering, throttle, brake] = decodeAction(actionIndex);
+
+            if (Number.isNaN(logProbsAll[i][actionIndex])) {
+                const lobProb = logProbsAll[i][actionIndex];
+                console.log("also BAD");
+            }
+
+            actions.push({
+                steering,
+                throttle,
+                brake,
+                actionIndex,
+                logProb: logProbsAll[i][actionIndex]
+            });
+        }
+        return actions;
+    });
+}
+
 
 // Map index 0-11 to (steering, throttle, brake)
 function decodeAction(index) {
@@ -842,16 +814,19 @@ function decodeAction(index) {
     return actions[index];
 }
 
+
 // Sample from 12-action distribution
 function sampleFromCategorical(probs) {
-    let r = Math.random();
+    const r = Math.random();
     let sum = 0;
-    for (let i = 0; i < probs.length; i++) {
+    for (let i = 0; i < probs.length - 1; i++) {
         sum += probs[i];
         if (r < sum) return i;
     }
     return probs.length - 1; // Fallback
 }
+
+
 
 
 function logProbCategorical(logits, action) {
@@ -866,13 +841,82 @@ function logProbCategorical(logits, action) {
 }
 
 
+function validateCarBuffer(buffer, carId) {
+    if (!buffer.length) throw new Error(`Empty experience buffer for car ${carId}`);
 
-function discountedCumulativeSums(arr, gamma) {
-    let res = [];
-    let sum = 0;
-    arr.slice().reverse().forEach(value => {
-        sum = value + sum * gamma;
-        res.push(sum);
-    });
-    return res.reverse();
+    const last = buffer[buffer.length - 1];
+    if (!last.done) throw new Error(`Last experience for car ${carId} is not done`);
+    if (last.reward == null) throw new Error(`Last experience for car ${carId} has no reward`);
+    if (!last.nextAgentState) throw new Error(`Last experience for car ${carId} has no nextAgentState`);
+    if (last.timeout && !Number.isFinite(last.nextValueEstimate)) throw new Error(`Last experience for car ${carId} is truncated but has no nextValueEstimate`);
+
+    for (let t = 0; t < buffer.length - 1; t++) {
+        if (buffer[t].done) throw new Error(`Experience ${t} for car ${carId} is done before the final experience`);
+        if (buffer[t].timeout) throw new Error(`Experience ${t} for car ${carId} is timeout before the final experience`);
+    }
 }
+
+
+
+
+/*
+I am implementing PPO completely from scratch in TensorFlow.js for a deterministic racing simulator extracted from PolyTrack.
+
+The simulator is non-realtime: it advances deterministic physics (1 ms physics steps), pauses every control interval (currently 100 ms), requests an action from the policy network, applies the action, then repeats. The long-term goal is to increase the control frequency and synchronize roughly 100 environments so they all pause, infer, and resume together, allowing PPO to train from one large shared rollout rather than sequential episodes.
+
+The action space is intentionally discrete. There are exactly 12 actions representing every combination of:
+
+* steering ∈ {-1, 0, 1}
+* throttle ∈ {0, 1}
+* brake ∈ {0, 1}
+
+I do not want to switch to continuous actions.
+
+The PPO implementation is entirely my own.
+
+Current implementation:
+
+* Separate policy and value networks (256 → 128 → 64 MLPs)
+* Policy outputs logits over 12 actions
+* Value network outputs a scalar V(s)
+* GAE (gamma/lambda)
+* Advantage normalization
+* PPO clipped objective
+* Entropy bonus
+* Separate Adam optimizers for actor and critic
+* Global gradient norm clipping
+* Multiple epochs with shuffled minibatches
+
+Current focus is correctness. I am trying to get a PPO implementation that behaves like canonical PPO implementations (Stable Baselines3 / CleanRL / Spinning Up), not merely something that "sort of learns."
+
+Important observations so far:
+
+* Recomputing values during training (instead of using rollout-time value estimates) is intentional and matches common PPO implementations.
+* Global gradient norm clipping originally produced NaNs because of numerical issues. Using addN() to compute the norm and adding epsilon before division fixed this.
+* The PPO ratio sanity check passed:
+
+  * Before the first optimizer update, ratio ≈ 1.0 exactly.
+  * Later minibatches drift gradually (roughly 0.85–1.28), which appears reasonable.
+* Explained variance is consistently around 0.95, suggesting the critic is fitting returns well.
+* Current clip fraction is often around 0.35–0.60 (computed per minibatch of 32), which seems somewhat higher than expected and is worth discussing.
+* Training currently happens after each individual episode. I plan to replace this with PPO's more standard workflow of collecting one rollout from many synchronized environments before performing updates.
+
+When reviewing code, assume subtle implementation bugs are still possible.
+
+Please be extremely critical of:
+
+* PPO math
+* GAE implementation
+* log-probability calculations
+* value targets
+* optimizer usage
+* batching/minibatching
+* rollout collection
+* any subtle differences from canonical PPO implementations
+
+Do not recommend rewriting everything in Python or using an existing PPO library. Instead, compare my implementation against canonical PPO implementations and identify concrete implementation differences or potential mistakes.
+
+If you suspect something is incorrect, explain precisely why and reference the standard PPO algorithm rather than giving generic RL advice.
+
+When reviewing code, be extremely critical. Assume subtle PPO implementation mistakes are possible. Compare against canonical PPO implementations (Stable Baselines3, CleanRL, OpenAI Spinning Up) where appropriate, but keep solutions compatible with TensorFlow.js and my architecture rather than suggesting a complete rewrite.
+*/

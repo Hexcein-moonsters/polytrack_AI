@@ -6,10 +6,13 @@
 <script src="path.js"></script>
 <script src="ai_environment.js"></script>
 
-<!--<script src='/lib/plotly-3.2.0.min.js'></script>-->
+<script src="visualizer.js"></script>
+
+<!--'plotly-3.2.0' is loaded after .wasm (math) loaded, in ai_environment.js-->
 
 <p id="modelName">Model Name: *loading*</p>
 <p id="iteration_count">Iterations: *loading*</p>
+<p id="attempt_count">Attempts: *loading*</p>
 <br>
 <div id="bestAttempt">Best Attempt:
     <li>Total Rewards: *loading*</li>
@@ -17,4 +20,13 @@
     <li>Car Recording: *loading*</li>
     <li>Attempts: *loading*</li>
 </div>
-<div id="graph_rewarditerations"></div>
+
+<div id="graph_performance"></div>
+<div id="graph_critic"></div>
+<div id="graph_stability"></div>
+<div id="graph_exploration"></div>
+
+<style>
+    #iteration_count {margin-bottom: 0}
+    #attempt_count {margin-top: 0}
+</style>

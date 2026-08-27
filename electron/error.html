@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Network Error</title>
+    <style>
+        html {
+            min-height: 100vh;
+            place-content: center;
+            text-align: center;
+            background: #1e1e1e;
+            color: #d4d4d4;
+        }
+    </style>
+</head>
+<body>
+    <h1><span id="errorDescription"></span> (<code id="errorCode"></code>)</h1>
+    <h2><code id="validatedURL"></code></h2>
+    
+    <button id="reload">Reload</button>
+
+    <script>
+        const params = new URLSearchParams(window.location.search);
+        const targetUrl = params.get('validatedURL');
+
+        document.getElementById('validatedURL').textContent = targetUrl;
+        document.getElementById('errorDescription').textContent = params.get('errorDescription');
+        document.getElementById('errorCode').textContent = params.get('errorCode');
+
+        document.getElementById('reload').onclick = function() {
+            this.disabled = true;
+            window.location.href = targetUrl;
+        };
+    </script>
+</body>
+</html>

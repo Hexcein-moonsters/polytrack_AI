@@ -8,16 +8,14 @@ const Q_ = getShared("Q_"); // at this point, Q_ has probably been set by full_s
 if (!Q_) throw new Error("Q_ not found in shared!");
 
 // youngfella, 22074, world record
-const replay = "eNpdkDsKwlAQRc8rAgl-cAEWgmBho1YKglZaKQixilWs7NJpIensXIGCS3AJNiq4EwtxAZa-d0NAnGIYZs7MvYyHi1eDoeESsIAhzGAAUxhBDE1Y_eS_Thvm4rO-MXTAq5JAD56GOnw8unDz3ejg0yox1vFQcrbu5usRjg-1a4GOcgZHKrKcqpPIZCI-0cg68WFb4RhwKrIx3APH9AsUitTg4TvDkXTD_KA9tZSHVB5S6V7l5AxVeJcdsxe5k0qsRWtynf9qosLGF-mpJjg";
-const trackData = "4pdXVdtzriDEerE9ylBIAheAEa3RxOAmSATJwTflf6snVf1KNa6GMz8NDp2Vte0nnbLaV10h1veiig234ZWj2tVD7bmPkPNvPe24bSr3WrquSapV1Wl1X6SSPutyEXeHrBZoaeijwdQdGEkegVYgT6x5NhTBQrOo9VAASPAZ9s4giwZooSwyaeD6JNlkyGBOeHRNCaANOR7gBwQbjKOQPU2u6FcIYDR2V0hAec35ckcDeq6drtlhzqRpfE4HolDwth2XgoJeBTTcwRB5wXAzN3GjNGclDfvSl3HEoCH7swKhpafjjd2uyFFSjSN6Ge7DR0aaqnfr1XRGJhHg7AcKN5bR3veLvuGFwTrePe1W1diC7j9se5wkR2DJZWsDQdo11kAq1gYdIGRm5e5Ry4MhEmxFOylELHcfjJ40bNCWsReJn2ZniZbIozJEfzeeyF5gZYIXfjceOWzhp6UNOp3VGFlunCk692FebWC0kYekehY73UJnMNSEUVpZAfxJ2Pby6R2zhY3F8KRpC1k206IgLkaWkc4g7EW49ZTlVD4CCv0sYlo4yJz4AwpR1cvrOoq2e8SVOmQivDzzSFf6aXT1ZZ1v7iVL2fQbfhYwJgAP0LevM3EUfskaDV3unKyLGWw4RWz81mezfP5p6nMqo0g6QDi3PLy3oeRmo8dvyvYsNE28m2fsfz98njOGPPJJKdcSCfL5fXOf03n4f861ERIYmDevEXpf8eVq9vYeS25BRPupXMpcy9MhBvtXw3dLuGMeUIwPYdfaS6xJqsvabVqlJH1vFcmkBSYxJsvuotVjZvpkrQlqxtSYZxrT6kEDPg96z73ibn3JZ0szBazbRxnr0pHFlTFE7O58aOQN6DxGU5Q12Jim9F9naeXdscQ1an3yHa7m5vRpOa7mEtun6qGsS8ApQg01gkjwbKw7ew3FsKwMfo3oZCIOd6IwkqeSqi23bm2wGJ7L8iVuDCNCm029LDkHfsZfavYqWol2jPpoMTNmXS5jExfwqhJz22tmGY45sByAVBTQEPFiGhdZdEugGBbcK4IIsRwDMTNwGSVL719XEwTfRXYPf4fBcEfsFIVxeGVbmddbtPfWlhrR77nfqOYk1XdxsMKMehxNg67aHp3J3QmIATh9KjXezU5Q2RWfM3y3hVIS9Mxrr5Yn9d3oMAW05gzPe1ZeR1y4KxWA1CERv6f8erKQ95EsXzHt3jOxKFfqZ3IFlFOd8XDyNnnZZvYesh2ecBgHMEXaX4oxCUfbS5h6ug8pl92vE0ce1NVVQvBqto3ycF7xXLRsVMVPv81HGpAO01vq2a0rMPcrPvWJqDyK9A3AfZByVptK3tul5PlmqULKMTWP79hcvr00XVHe1gA0PIq4Gpb23qakhqoN5QiFdGh6cWuhymq0BycWrt3fyEkF8E2wbI11ofhkoqXwVYPfXhB2GjvEkNGpL3LgxalqDPeh5HnlWGjbXlePBL278wbXBRf5RwyPVnEosNpBbSeQiVlKGhipWmfwoCXM9wwgyJBhs5pCD8MER2vQIJqK8DjWMfXeD6TpZbQ2nrFVtuRbZFkZDCfa8N2DzgyTI9d8qzwbcvzHKJoIrB9f0gQp0b0GNEsKceg10zWFThunfDqKXRLZ4fiwyPJiJfeSqeefRXwbhHstYMDzsHt8YveHjy1DhgFWrZHaOSnBBnJwBJdmfGBLq6zmq0hXFwW9tZaQLACg37giA585jx46yRKXEBrzCf8DHmOgCTsA9Cged3ZgHuTpWkjASvEnTac9FRN1OJGxHdGpjJBccAR3X2nHSXtHnChB7qxUKTdnqRaB9Fe8A6u57sb3YTx8PVePpzmhvC";
+//const replay = "eNpdkDsKwlAQRc8rAgl-cAEWgmBho1YKglZaKQixilWs7NJpIensXIGCS3AJNiq4EwtxAZa-d0NAnGIYZs7MvYyHi1eDoeESsIAhzGAAUxhBDE1Y_eS_Thvm4rO-MXTAq5JAD56GOnw8unDz3ejg0yox1vFQcrbu5usRjg-1a4GOcgZHKrKcqpPIZCI-0cg68WFb4RhwKrIx3APH9AsUitTg4TvDkXTD_KA9tZSHVB5S6V7l5AxVeJcdsxe5k0qsRWtynf9qosLGF-mpJjg";
+//const trackData = "4pdXVdtzriDEerE9ylBIAheAEa3RxOAmSATJwTflf6snVf1KNa6GMz8NDp2Vte0nnbLaV10h1veiig234ZWj2tVD7bmPkPNvPe24bSr3WrquSapV1Wl1X6SSPutyEXeHrBZoaeijwdQdGEkegVYgT6x5NhTBQrOo9VAASPAZ9s4giwZooSwyaeD6JNlkyGBOeHRNCaANOR7gBwQbjKOQPU2u6FcIYDR2V0hAec35ckcDeq6drtlhzqRpfE4HolDwth2XgoJeBTTcwRB5wXAzN3GjNGclDfvSl3HEoCH7swKhpafjjd2uyFFSjSN6Ge7DR0aaqnfr1XRGJhHg7AcKN5bR3veLvuGFwTrePe1W1diC7j9se5wkR2DJZWsDQdo11kAq1gYdIGRm5e5Ry4MhEmxFOylELHcfjJ40bNCWsReJn2ZniZbIozJEfzeeyF5gZYIXfjceOWzhp6UNOp3VGFlunCk692FebWC0kYekehY73UJnMNSEUVpZAfxJ2Pby6R2zhY3F8KRpC1k206IgLkaWkc4g7EW49ZTlVD4CCv0sYlo4yJz4AwpR1cvrOoq2e8SVOmQivDzzSFf6aXT1ZZ1v7iVL2fQbfhYwJgAP0LevM3EUfskaDV3unKyLGWw4RWz81mezfP5p6nMqo0g6QDi3PLy3oeRmo8dvyvYsNE28m2fsfz98njOGPPJJKdcSCfL5fXOf03n4f861ERIYmDevEXpf8eVq9vYeS25BRPupXMpcy9MhBvtXw3dLuGMeUIwPYdfaS6xJqsvabVqlJH1vFcmkBSYxJsvuotVjZvpkrQlqxtSYZxrT6kEDPg96z73ibn3JZ0szBazbRxnr0pHFlTFE7O58aOQN6DxGU5Q12Jim9F9naeXdscQ1an3yHa7m5vRpOa7mEtun6qGsS8ApQg01gkjwbKw7ew3FsKwMfo3oZCIOd6IwkqeSqi23bm2wGJ7L8iVuDCNCm029LDkHfsZfavYqWol2jPpoMTNmXS5jExfwqhJz22tmGY45sByAVBTQEPFiGhdZdEugGBbcK4IIsRwDMTNwGSVL719XEwTfRXYPf4fBcEfsFIVxeGVbmddbtPfWlhrR77nfqOYk1XdxsMKMehxNg67aHp3J3QmIATh9KjXezU5Q2RWfM3y3hVIS9Mxrr5Yn9d3oMAW05gzPe1ZeR1y4KxWA1CERv6f8erKQ95EsXzHt3jOxKFfqZ3IFlFOd8XDyNnnZZvYesh2ecBgHMEXaX4oxCUfbS5h6ug8pl92vE0ce1NVVQvBqto3ycF7xXLRsVMVPv81HGpAO01vq2a0rMPcrPvWJqDyK9A3AfZByVptK3tul5PlmqULKMTWP79hcvr00XVHe1gA0PIq4Gpb23qakhqoN5QiFdGh6cWuhymq0BycWrt3fyEkF8E2wbI11ofhkoqXwVYPfXhB2GjvEkNGpL3LgxalqDPeh5HnlWGjbXlePBL278wbXBRf5RwyPVnEosNpBbSeQiVlKGhipWmfwoCXM9wwgyJBhs5pCD8MER2vQIJqK8DjWMfXeD6TpZbQ2nrFVtuRbZFkZDCfa8N2DzgyTI9d8qzwbcvzHKJoIrB9f0gQp0b0GNEsKceg10zWFThunfDqKXRLZ4fiwyPJiJfeSqeefRXwbhHstYMDzsHt8YveHjy1DhgFWrZHaOSnBBnJwBJdmfGBLq6zmq0hXFwW9tZaQLACg37giA585jx46yRKXEBrzCf8DHmOgCTsA9Cged3ZgHuTpWkjASvEnTac9FRN1OJGxHdGpjJBccAR3X2nHSXtHnChB7qxUKTdnqRaB9Fe8A6u57sb3YTx8PVePpzmhvC";
 
-// old test
-//const replay = "eNodzq0SQQEYhOHnO8wYp5D8JRqNK0CiyRKNRtVIskQT0VRXompuwznesGFn9p0ty7k17emm6uGeGIV56Ba0WFRMOMnzxYwLW5bseP6becG7pMeGAR--4VnVZkyfaSZnRMq56UqkhuGQWIVe5PLswCNR5FizDo1OPs_4AYv-E-0";
-//const trackData = "4pdXVdsrrjrE8XS5wSrk1hWJrAVYnCk2KLqgtke1P6cn3bAmZBBIIaUorurqYqdViHeE0a4utrLqlBhc7yqD0rDoAqetLfj1j84od142txXVehkveTjtf6jsU3o49zTWKI625QRPGJN0PqhZ9kn8mIYZPassF8zKiaUYJU6G7uTpRyXek4uBEWFHtM0Y0FZfpFjAPLy8Hkewe763n6ez6wXbXI94D5al1AeRMCZeufbqlfhOd7agdTInd83uiwcQyyrw07hp6ajmeoP0EiEnRBiwaF76DZMQErs1UwJseAt8WcM71Qx02hPsIjXgv9IWeMBPcMGTCdfCppbTb9bPMjKQDP4Zrjj5U3L4U2OjZoqF5UQRbGkQBe1oypuChohFr9sSVrff9QCtfO7uUlLGcfFQP9yj84dlU20843kfm0Q8Oce2Fabcfudfvgy7WcqboYU93sfhKNpqXwgvoBLZg0r4XdeHgTYLldYNnRBXgFaBAMLRbbVMJ4Avo6i2lp8HsSOrcKARORcuT6z14C2x4OjoPbH56sTyV3dkc7kCzpCa0u6in40hWv5WxHf8VclNeNrQepd1YGZhnuwYg7bDbYlSyHnw6LeZbIANtMqYutefMxHm0N9N5dF2n60tyf1vkLm5Vf1pszcEkSygWimeptBrDV9WBfuA86FAfseZwbiRQdrOYqSr4efAeketKG0DJBhqRr4KdnRjK2rhHPiqZAxeCRqGffQZVEXeWV1p8RU99Sdz8BxOWuUP2sL8dREROYzvvv1xW4B9FXNCyh8lsqnbfGVfkUeTKJf1qRaNgWfQYp7BffMoxeBAdduTPGIf74dd6UTmGtamECmzrc0ULVfFhHeV1txi7x27fqC0f55plkRxg5XUqJxvbcFAiJ5ThXTx8g6GirA1eIkDYPE6VJkReMMQNy55gSfHMttfB2Ql1OF4AAep1r6TJlhBHROhDZ95EAIMqq2dIlEEG8Ia95gRf8NA4Mqq3dIj013u8k2Qo89UcRwxDYy0JsPfMAUEV14ymSkvqIkuSocYyNP4QB6NeUrX4S5MEJ366lRm7bL9ptEkqnQtEvJhQCCAxLQ5ueatvkfHWxxY1IFfvpoByhif8aWltFTGQB640eVljJQJrwTsIgelGG1PnwqVayu54HUTqHYHaK3yuJDfZz5lv97DmDyubXuqFn92rZOUf89wVYENFUOQ8nkyRPqJUa6YW0SSZruWOgtqwaCuSD4XMTwM8gln4CXf4BDxBezUXeMS0FBqVuIG1zYORml1VA5BSEF3dFd0TQp3a4GdnMOhsi3nBmcAkKWenk8ELzLrWVq6f3uNfcOWZ6xf1ae3LT6PXKRhc5SsY8eYcQHGt5u9eRz50J9Je8b8nkZYWrRDeCz4xOmx7hZ2777mxIASim4hkgwBhdDku33qStkdjfa71fbSzebCeNz9PXPYrEh89Sl3EJf81sHZBN3VoY8SofWTGVFA91y9TOTCCUfHnGzySG1rYq34a3ugM6maZ65eCJ0w70zQM9n35Z2QZyZk8Cfq6O9d8b7JfDz4TrFdaTyjLnVe7fJGviELjQtzQ05Bepfhpe4zuGQ3CPuOBpgJlZfv2g8T2nXXMKVPTVbSvJPqty5RDSgrlwrIJxPQhRvpIvfmYsfdxZVQ9oy61fHw3i8ci8seXMXd4MM";
-
+const replay = "eNoVzDEoRHEAgPHfe__3f_e4p1eHstyV1SKDbrIwXikbpZSUMihxg5QFA4OUXBltViaDVSa7iVUZmC143_Bt31epyZseU-uZ3Wgw4Tk4b5mKTjNFw1PuLDjhKhjjOFikXxowU5ljp2GBkJvkdtwB20nttxGzmR_mE53CXarFe1OfXm6P_XY9WY2WorXSCzfq4eewe74Lv4luWoejXBYu2GI6Wk5t5qpogy9eeSh1OexY4SM4itpDrmPd_vMHxCokSQ";
+const trackData = "4pdrWt2liiDE9vkAGI8xWRERATLoC5bCkqVeyH8QJf1vxeOzOzab3O7M75UW3kcKvhqSR4G5m6QgiQlhxauvgjIaUsMHGSr1ll5L3ua9Ljie6LjW96o1qynXNy8bzGNRgRvNaqYu5KxYxcdjIY3w56nZMOKJvnTNhadN101uAoAqdsQTCwhrcgt7kJpqc6YEoiIWMleQn5uqyhDjLhAFhzeSedKYJid0itL22m1xih1BMbbegE5K8pAWaFKPkwt7YuV40SKDT5Veg9IHxfNHyRkYmYuYmJHOh62yUcBBzp8QkHjpgTJ6XvtTwOEcBT8gqSwhDFIQG35BkSoavCnjNwZIH9OLGekwJ9Wqe30flzReCvOLkPVufC5KP7m8Be9deJwyjemfzdXV8Pf1t15j2cdb7eLbL9qLSrJxVDUz3UNoep9LOKZ3cnrVx3ZmnqvWyx02BLC3W50wLkRfeFO3xLmK1co1UyD8NXm6cKeHdzae2gxeDkmP2f3GfHwl4jm5TTPO6qZyxRhbvUMdl6bOeG6b0OQgY5CfHNL2sa7yHB7E7ZWxAbzTf5SllkIjPMYvvzDh6DBKR2G17lSMzS8ijc0iIhuz9ehSemX3aeWd7TcDbEleZFuXmvhv2tXqeum6Md7w5Fbe62RiE7Bw66IfPa3dehdno5f4gHUyeOg3sNwP79S03LV3jP6o4fJ3xY7P1pbfI5xOqvV5gd2pRfNQpd00oNfdQu6Fa6w6FJbsWc2o6nWQmxq1fYbf00rttRhh1ndklM1UfPLk0dzUjIKXGtovJxShPhcJDPRCCH8IjtFUusReVWih1wZK9pJkA8LkeBU4oJihCco3fMf9UHeA5pBtSm0NTpi0lfedd3vvJ7YUbH6brrLPHlfM1Imaphmu4yy2CthM3rG4ZkCdHne6InnsvmqXehrj4eSeWWijyVdBVUQyEtALVcfLYqiHeFL0m2MN6eWDHnG91PSUo5GPNfz5RfNeofr5pndqBenYlfzs2fBGTRmpQ1ek8bXD8bbXjjh6GufpRmnRzni2KfD93vKDRLbNgrf6ujkdLqfl9rCekcjH0Xzjoh9qpKfTDqQP8WXd4fveKHw2nAYtn0Uuk9rSHdZrQhyvQu2FGE90UIZzvQQ4Re290bMuaJN5p12UAaqcbsxDmYBlkjH08EygOguEzeDdUZIL9SbIPHZvQLg9uOKKL5UcJCJ0WVW5JkNhKplVdue4YclLEUCUOUj6SSEBJ0RF6dTHlg8W0Z80OwDarYfZpUVsFlV3rl6430SRaOMHSsG7wSQVlOQCCT6SY91wlgMJCkvkY7OxpfCGyCiFaywBtaIQ3pTDlEOwwZOnYXlmMjhMcmOlDEDU1tAnzBfiRKd5w6YGRH3J5tKH0tGXg6WtzzEvOwhztH5SZ1KCJkEofRGCd7HlzL7mxCZeZfXp8BdRMYsIjPXCDHoNnXeMmAioeurzFCLjDVHbYi8Lgipn6D7LxjYppUAimDpApqnDgbBBdNEypEqcQJWg2AKunQHYiZNUYnMGGCO6qQD7Ece7RpnbfG2TAZ1KCKb7Vg6pC9RywZteMYzcNQPjqoraUpfClkIfvRXt9YET8hIFAQFEGafTAGmzA9Cx5g3txjNSNRAO18AGJkrTAY9asCHyqkuUYKKIiXs2DXyGbCghLW8UP9vA8KggEH";
 
 let allStates = [];
-let pathPositions = [];
+let flatPoints = [];
 
 setShared("onCommunicatorReady", () => { // ready = after Init
     /*for (let index = 0; index < 1000; index++) {
@@ -52,56 +50,96 @@ setShared("onCommunicatorReady", () => { // ready = after Init
 
 function pathDone() {
     console.log(allStates);
-    /*allStates.forEach(state => {
-        if (state.frames % 100 == 0) { // will start at 100 and then do 200, 300,..
-            //console.log(state);
-            /*pathPositions.push({
-                frame: state.frames,
-                pos: state.position
-            });*/
-    /*pathPositions.push({
-        x: Number( state.position.x.toFixed(2) ),
-        y: Number( state.position.y.toFixed(2) ),
-        z: Number( state.position.z.toFixed(2) ),
-    });
-}
-});*/
-
 
     const pointDistance = 0.5; // All points will be between 0.5 and 0.6 meters from each other
-    pathPositions = [];
 
+
+    let totalDistance = 0;
+    let totalPoints = 0;
+    flatPoints = [];
     for (const state of allStates) {
-        const { x, y, z } = state.position;
+        //const { x, y, z } = state.position;
+        const currentPoint = {
+            x: Number(state.position.x.toFixed(4)),
+            y: Number(state.position.y.toFixed(4)),
+            z: Number(state.position.z.toFixed(4))
+        };
 
-        if (pathPositions.length === 0) {
+        if (flatPoints.length === 0) {
             // Always add the first point
-            pathPositions.push({
-                x: Number( x.toFixed(4) ),
-                y: Number( y.toFixed(4) ),
-                z: Number( z.toFixed(4) )
-            });
+            flatPoints.push(currentPoint);
+            totalPoints++;
         } else {
             // Calculate the distance from the last selected point
-            const lastPoint = pathPositions[pathPositions.length - 1];
-            const dx = x - lastPoint.x;
-            const dy = y - lastPoint.y;
-            const dz = z - lastPoint.z;
+            const lastPoint = flatPoints[flatPoints.length - 1];
+
+            const dx = currentPoint.x - lastPoint.x;
+            const dy = currentPoint.y - lastPoint.y;
+            const dz = currentPoint.z - lastPoint.z;
             const distance = Math.sqrt(dx * dx + dy * dy + dz * dz); // square everything, then add up, then square root
 
             if (distance >= pointDistance) {
-                pathPositions.push({
-                    x: Number( x.toFixed(4) ),
-                    y: Number( y.toFixed(4) ),
-                    z: Number( z.toFixed(4) )
-                    //d: distance
-                });
+                flatPoints.push(currentPoint);
+                totalDistance += distance;
+                totalPoints++;
             }
         }
     }
+    console.log('Total points:', totalPoints);
+    console.log("Total distance:", totalDistance);
+    const averageDistance = totalPoints > 1 ? totalDistance / (totalPoints - 1) : 0;
+    console.log('Average distance between points:', averageDistance.toFixed(3), 'meters');
 
 
-    console.log(pathPositions);
+    const segments = {};
+    let lastPoint = null;
+    for (const state of allStates) {
+        const checkpointIndex = state.nextCheckpointIndex;
+        const { x, y, z } = state.position;
+
+        if (!segments[checkpointIndex]) {
+            segments[checkpointIndex] = [];
+        }
+
+        const currentPoint = {
+            x: Number(x.toFixed(4)),
+            y: Number(y.toFixed(4)),
+            z: Number(z.toFixed(4))
+        };
+
+        const pointIndex = flatPoints.findIndex(point => // precompute global index of each point
+            point.x === currentPoint.x &&
+            point.y === currentPoint.y &&
+            point.z === currentPoint.z
+        );
+        currentPoint.i = pointIndex; // global index: where in flatPoints will you find this exact point
+
+        const segment = segments[checkpointIndex];
+
+        // Only accept the very first point of the entire track: all following checkpoints must respect distance
+        if (lastPoint == null) {
+            segment.push(currentPoint);
+            lastPoint = currentPoint;
+            continue;
+        }
+
+        // Calculate distance from last point
+        //const lastPoint = segment[segment.length - 1];
+        const dx = currentPoint.x - lastPoint.x;
+        const dy = currentPoint.y - lastPoint.y;
+        const dz = currentPoint.z - lastPoint.z;
+        const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
+
+        if (distance >= pointDistance) {
+            segment.push(currentPoint);
+            lastPoint = currentPoint;
+        }
+    }
+
+    console.log("--------------------");
+    console.log("flatPoints (IMPORT!):", flatPoints);
+    console.log('pointSegments (IMPORT!):', segments);
+    console.log("--------------------");
 }
 
 
