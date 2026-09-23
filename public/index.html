@@ -1,4 +1,36 @@
 <script src="/magic_functions.js"></script>
 <!--<script src="lib/magic_draco.js"></script>-->
 <script src="/lib/ammo.wasm.js"></script>
+<script src="/lib/tfjs.js"></script>
 <script src="/determenism_check.js"></script>
+
+<body>
+    <h3 id="output">Output: </h3>
+
+    <br><h2>Model name: <input id="modelName" placeholder="model1"> <button id="start"><strong>Start PPO training</strong></button></h2>
+
+    <div id="modelsDiv" class="hidden">
+        <hr><ul id="models">Existing models:
+        </ul>
+    </div>
+
+    <style>
+        * { font-style: normal; }
+        body { padding: 2rem; color: white; }
+        html { zoom: 1.2; }
+
+        #output { color: aquamarine; }
+        #start {
+            background-color: green; color: wheat; border: none; border-radius: 5px;
+            padding: 0.5rem; font-size: 1rem; }
+        #modelName { padding: 0.3rem; width: 7rem; }
+
+        #models { color: white; list-style-position: inside; padding-inline-start: 0; }
+        #models li { padding-top: 0.5rem; }
+        #models li a { color: wheat !important; }
+        .delete-link { text-decoration: none; }
+        .hidden { display: none }
+
+    </style>
+    <link rel="stylesheet" href="/assets/PolyGlyphs.css">
+</body>

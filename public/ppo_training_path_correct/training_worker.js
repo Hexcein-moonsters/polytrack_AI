@@ -1,6 +1,9 @@
 const workerTimeOrigin = performance.timeOrigin;
 importScripts('/lib/tfjs.js');
 
+importScripts("https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-wasm/dist/tf-backend-wasm.js");
+tf.wasm.setWasmPaths('/lib/'); // /lib/tfjs-backend-wasm-simd.wasm
+
 let numInputs = 0; // will be updated at model_init
 const numStack = 1;
 
@@ -13,27 +16,23 @@ const info = false;
 let timeOffset = 0;
 const getTime = () => performance.now() + timeOffset; // function to get time of main thread
 
+tf.setBackend('wasm');
+tf.ready().then(() => { // waits for wasm backend to load
+    console.log("BACKEND: " + tf.getBackend());
+    if (tf.getBackend() !== "wasm") {
+        const func = () => { alert("Tfjs wasm backend failed to load"); };
+        postMessage({ type: "eval", data: { funcStr: func.toString(), params: [] } });
+    }
+});
+
 let policyNetwork, valueNetwork;
 self.onmessage = async (e) => {
     if (e.data instanceof ArrayBuffer) { // Not that redundant, as this check is often true since 'predict' is called lots of times
-        // This means we must be in 'predict'
         const batchBuffer = new Float32Array(e.data);
         predictBatch(batchBuffer);
-
-        /*const startsAtIndex = flatBuffer[0];
-        const startTime     = flatBuffer[1];
-        const carID         = flatBuffer[2];
-        const reward        = flatBuffer[3];
-        const finishFrames  = flatBuffer[4];
-
-        // Zero-copy slice pointing straight to your agent state floats
-        const agentStateView = flatBuffer.subarray(startsAtIndex); // sliced from start index, headers and extra non-state floats are removed
-
-        predict(agentStateView, startTime, carID, reward, finishFrames);*/
     } else {
         const { type, data } = e.data;
 
-        //console.log("Training worker received message of type:", type);
         if (type === 'model_init') {
             model_init(data);
         } else if (type === 'predict') {
@@ -120,9 +119,6 @@ async function predict(agentState, startTime, carID, reward, finishFrames) {
     // First calculate the reward and set nextAgentState of our last experience state
     const xpLength = experienceBufferPerCar[carID].length;
     if (xpLength > 0) { // are we on our second state
-        //const statesOfPreviousExperience = experienceBufferPerCar[carID][xpLength - 1].envStates; // get last states from xp arr
-
-        //const reward = calculateReward(carID, data.states); // calculate previous reward based on the outcomes of the environment at this moment
         experienceBufferPerCar[carID][xpLength - 1].reward = reward;
         experienceBufferPerCar[carID][xpLength - 1].nextAgentState = agentState; // store our current observed 'result' input agentState into the last nextAgentState
         //if (lastSimState.finishFrames !== null) { // car has finished
@@ -314,7 +310,6 @@ async function train(data) {
         maxGradNorm = 0.5
         // MORE HYPERPARAMS??? I DONT KNOW
     } = PPO_CONFIG;
-    console.log(entropyCoef);
 
     // update optimizers if any learning rate configs are different
     if (policyLearningRate !== lastLearningRates.policy) {
@@ -332,7 +327,7 @@ async function train(data) {
     // We don't use total loss, as trunk (inputs+hidden) of models (policy and value) aren't shared
 
 
-    function trainPPO(policyNet, valueNet, carBuffers, carIDs) { // doesn't need to be async
+    function trainPPO(policyNet, valueNet, carBuffers, carIDs) {
         const flatBuffer = carIDs.flatMap(carId => carBuffers[carId]);
 
         for (let idx = 0; idx < flatBuffer.length; idx++) {
@@ -549,22 +544,22 @@ async function train(data) {
         tf.dispose(tensorsToDispose);
 
         return {
-            // performance criteria
+            // performance
             averageStateReturn: averageStateReturn, // discounted reward. More reward = better
             avgReturnPerCar: avgReturnPerCar,
-            // critic criteria
+            // critic
             averageValueLoss: average(vLosses), // downward curve = valueNet (critic) understands the world better
             explainedVariance: explainedVariance, // valueNet: 1=perfect, 0=no better than average baseline, <0 worse than baseline = harmful estimates
-            // stability criteria
+            // stability
             averagePolicyLoss: average(pLosses), // policy optimizing, can be noisy but should go down
             approxKLDivergence: average(approxKLs), // mean(oldLogProbs - newLogProbs). Safe updates = lower than 0.02 otherwise self-destruction
-            // exploration criteria
+            // exploration
             averageEntropy: average(entropies), // exploration. Downward curve = mastering instead of guessing. Shouldn't be too low (otherwise it repeats bad actions)
             averageNewLogProbs: average(newLogProbs) // Higher = more confidence. Not too high, else it's (somehow) overfitting
         };
     }
 
-    let highestReward = [ -1e6, -1 ]; // [0] is the reward, [1] is the carId that got it
+    let highestReward = [ -1e6, -1 ]; // [0] is reward, [1] is carId that got it
     let totalRewardPerCar = {};
     for (const carId of carIDs) {
         let totalReward = 0;
@@ -576,7 +571,7 @@ async function train(data) {
         if (totalReward > highestReward[0]) highestReward = [ totalReward, carId ]; // first index is the reward, second is cardId
     }
 
-    const carBuffers = {}; // obj
+    const carBuffers = {};
     for (const carId of carIDs) {
         const buffer = experienceBufferPerCar[carId];
         carBuffers[carId] = buffer;
@@ -662,16 +657,13 @@ function recordingStringDone(data) {
         console.log(bestAttempt);
         console.log("RequestID " + requestId + " got bestattempt replay string: " + carRecording);
         console.log("Getting recording took " + (performance.now() - startTime).toFixed(2) + "ms");
-    } else { // Normally this always arrives in sync, but just in case. Nvm it can sometimes happen
-        console.warn("Our bestAttempt has been updated while we were requesting carRecording string");
-    }
+    } // bestAttempt can update while we're requesting carRecording string. If new record, don't log
 }
 
 
 
 async function saveModel(model, name) {
     await model.save(`indexeddb://${name}`);
-    //console.log(`Model saved as ${name}`);
 }
 function createModel(numInputs) {
     const totalInputs = numInputs * numStack;
@@ -769,11 +761,6 @@ function getActions(policyModel, statesTensor) {
     return tf.tidy(() => {
         const logits = policyModel.predict(statesTensor); // [batchSize, 12]
 
-        const arr = logits.arraySync();
-        if (Number.isNaN(arr[0][0])) {
-            console.log("BAD");
-        }
-
         const actionProbs = tf.softmax(logits).arraySync();
         const logProbsAll = tf.logSoftmax(logits).arraySync();
 
@@ -803,9 +790,7 @@ function getActions(policyModel, statesTensor) {
 
 // Map index 0-11 to (steering, throttle, brake)
 function decodeAction(index) {
-    // Index: 0= (-1,0,0), 1= (-1,0,1), 2= (-1,1,0), 3= (-1,1,1),
-    //         4= (0,0,0), 5= (0,0,1), 6= (0,1,0), 7= (0,1,1),
-    //         8= (1,0,0), 9= (1,0,1), 10= (1,1,0), 11= (1,1,1)
+    // Example: index 2 = (-1,1,0) = left+forward
     const actions = [
         [-1, 0, 0], [-1, 0, 1], [-1, 1, 0], [-1, 1, 1],
         [0, 0, 0], [0, 0, 1], [0, 1, 0], [0, 1, 1],
@@ -825,8 +810,6 @@ function sampleFromCategorical(probs) {
     }
     return probs.length - 1; // Fallback
 }
-
-
 
 
 function logProbCategorical(logits, action) {

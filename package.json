@@ -10,7 +10,7 @@
     "both": "concurrently \"node --run start\" \"node --run test\""
   },
   "license": "GPL-3.0-or-later",
-  "packageManager": "pnpm@11.22.0",
+  "packageManager": "pnpm@12.3.4",
   "dependencies": {
     "express": "^5.1.0"
   },

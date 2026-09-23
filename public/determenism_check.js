@@ -1,3 +1,8 @@
+const getTrainingUrl = (modelName) => {
+    return location.origin + `/ppo_training_path_correct/?modelName=${modelName}`;
+} // !!!
+
+
 (() => {
 
     const lw = [];
@@ -826,6 +831,8 @@
     function postMessage(e) {
         console.log("Sim sent msg:", e);
         console.log("Determinism took:", performance.now() - startTime, "ms");
+
+        document.getElementById("output").innerHTML = `Determinism took: ${(performance.now() - startTime).toFixed(2)}ms`;
     }
     let startTime;
 
@@ -840,3 +847,95 @@
 
 
 
+let config = JSON.parse(
+    localStorage.getItem("AI_PPO_menuConfig") || JSON.stringify({
+        modelName: ""
+    })
+);
+const saveConfig = () => localStorage.setItem("AI_PPO_menuConfig", JSON.stringify(config));
+
+document.addEventListener("DOMContentLoaded", async () => {
+    const model = document.getElementById("modelName");
+    model.value = config.modelName;
+
+    function navigate() {
+        config.modelName = model.value;
+        saveConfig();
+        location.href = getTrainingUrl(config.modelName);
+    }
+
+    document.getElementById("start").addEventListener("click", navigate);
+    model.addEventListener("keydown", (e) => {
+        if (e.key == "Enter") navigate();
+    });
+
+
+
+    const dbs = await indexedDB.databases();
+    for (const dbInfo of dbs) {
+        if (dbInfo.name === 'tensorflowjs') {
+            const openRequest = indexedDB.open('tensorflowjs');
+
+            openRequest.onsuccess = (event) => {
+                const db = event.target.result;
+
+                if (!db.objectStoreNames.contains('model_info_store')) return;
+
+                const transaction = db.transaction('model_info_store', 'readonly');
+                const store = transaction.objectStore('model_info_store');
+                const keysRequest = store.getAllKeys();
+
+                keysRequest.onsuccess = () => {
+                    let models = [];
+                    for (const key of keysRequest.result) {
+                        if (key.endsWith("-policyNetwork")) {
+                            models.push(key.replace(/-policyNetwork$/, ""));
+                        }
+                    }
+                    if (models.length == 0) return;
+
+                    document.getElementById("modelsDiv").classList.remove("hidden");
+                    const modelList = document.getElementById("models");
+                    for (const model of models) {
+                        let iterationData = localStorage.getItem(`AI_PPO_totalIterations..${model}`);
+                        if (iterationData) iterationData = JSON.parse(iterationData);
+
+                        const iterationStr = iterationData ? ` (${iterationData.attempts} attempts)` : ``
+                        modelList.innerHTML += `<li>
+                            <strong><a href="#" class="model-link" data-name="${model}">${model}</a></strong>
+                            ${iterationStr}
+                            <a href="#" class="delete-link" data-name="${model}" title="Delete ${model}" data-attempts="${iterationData.attempts}">
+                                <span class="polyglyph">&#xE086;</span> <!-- Trashbin -->
+                            </a>
+                        </li>`;
+                    }
+                    modelList.querySelectorAll(".model-link").forEach(link => {
+                        link.addEventListener("click", (e) => {
+                            e.preventDefault();
+                            model.value = link.getAttribute("data-name");
+                        });
+                    });
+                    modelList.querySelectorAll(".delete-link").forEach(link => {
+                        link.addEventListener("click", async (e) => {
+                            e.preventDefault();
+                            const model = link.getAttribute("data-name");
+                            const attempts = link.getAttribute("data-attempts");
+                            const doDelete = confirm(`Are you sure you want to delete '${model}'? (${attempts} runs)\nThis'll delete policy+value networks and iteration count data\n(From IndexedDB and LocalStorage)`);
+                            if (!doDelete) return;
+                            const reallyDelete = confirm(`Really sure that you want to delete '${model}'?`);
+                            if (!reallyDelete) return;
+                            
+                            await tf.io.removeModel(`indexeddb://${model}-policyNetwork`);
+                            await tf.io.removeModel(`indexeddb://${model}-valueNetwork`);
+                            localStorage.removeItem(`AI_PPO_totalIterations..${model}`);
+
+                            location.reload();
+                        });
+                    });
+                };
+            };
+
+            break;
+        }
+    }
+});

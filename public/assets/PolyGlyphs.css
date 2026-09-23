@@ -1,0 +1,8 @@
+@font-face {
+  font-family: 'PolyglyphFont';
+  src: url('/assets/PolyGlyphs-Outlined.ttf');
+}
+
+.polyglyph {
+  font-family: 'PolyglyphFont';
+}

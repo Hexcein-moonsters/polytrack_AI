@@ -1,5 +1,5 @@
 import { app, BrowserWindow } from 'electron';
-import { port, path, finalUrl } from '../config.js';
+import { port, finalUrl } from '../config.js';
 
 // Force the underlying Chromium engine to never throttle background tasks
 app.commandLine.appendSwitch('disable-background-timer-throttling');

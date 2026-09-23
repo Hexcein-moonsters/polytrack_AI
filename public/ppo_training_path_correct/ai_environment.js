@@ -28,7 +28,6 @@ addSharedEventListener("onCommunicatorReady", (type = "Init") => { // ready = af
     training_worker.postMessage({
         type: 'model_init', data: {
             name: modelName,
-            //calculateReward: calculateReward.toString(),
             mainTimeOrigin: performance.timeOrigin,
             timeVerify: performance.now(),
             numInputs: numInputs
@@ -124,7 +123,6 @@ const onTrainerMessage = (e) => {
 
         let newControlsPerCar = {};
         for (const carID of carIDs) {
-            const currentFrame = lastFramesPerCar[carID];
             const outputs = outputsPerCar[carID];
 
             let { up, down, left, right } = getControlsFromOutput(outputs);
@@ -212,6 +210,9 @@ const onTrainerMessage = (e) => {
             progressPercentage: data.progressPercentage,
             startTime: data.startTime
         });
+    } else if (type == "eval") {
+        const func = eval(`(${data.funcStr})`)
+        const result = func( ...(data.params || []) ); // runs in current scope
     } else {
         console.log("Unknown data:", e.data);
     }
@@ -392,8 +393,8 @@ function AI_controlsrequested_handler(carIDs, statesPerId) {
                 buffer: batchBuffer.buffer
             }
         },*/
-        batchBuffer.buffer,  // DIRECTLY send the buffer
-        [batchBuffer.buffer]  // TRANSFERABLE ARRAY (tells browser to "move this buffer" over the thread)
+        batchBuffer.buffer,  // DIRECTLY send the buffer (O(1))
+        [batchBuffer.buffer]  // TRANSFERABLE ARRAY, moves address to second thread, makes us unable to read it anymore
     );
 
     // Car will be unpaused by our onTrainerMessage, where type is "outputs"
